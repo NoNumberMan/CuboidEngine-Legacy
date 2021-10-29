@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "5mjKNEBnEwN4ubln6xyVJvNNG4ZO17CPvgrvGl90uLch1+E+7dy50XYfysiHJchVp96Y0cE6GDIzlfe88nuzng==",
+  "dgSpecHash": "PEqc/v+TBG2EtCT+LY9gL8zHgQD1B87CaZ+p9jfjF3s/St57TkDgOishSzV+Nz746phfcvJZzW9NRZNlbKvAdQ==",
   "success": true,
-  "projectFilePath": "D:\\GameDev\\Cuboid Engine\\Cuboid\\CuboidEngine\\CuboidEngine.csproj",
+  "projectFilePath": "D:\\GameDev\\CuboidEngine\\Cuboid\\CuboidEngine\\CuboidEngine.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\tommy\\.nuget\\packages\\opentk\\4.6.7\\opentk.4.6.7.nupkg.sha512",
     "C:\\Users\\tommy\\.nuget\\packages\\opentk.compute\\4.6.7\\opentk.compute.4.6.7.nupkg.sha512",

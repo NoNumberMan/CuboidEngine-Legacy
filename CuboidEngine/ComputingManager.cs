@@ -30,8 +30,12 @@ namespace CuboidEngine
 
 						int h = 0;
 						Console.WriteLine( System.Text.Encoding.Default.GetString( vendor ) );
-						if ( System.Text.Encoding.Default.GetString( vendor ) == "NVIDIA Corporation" ) h += 5; //TODO
-						validDevices.Add( h, devices[j] );
+						if ( System.Text.Encoding.Default.GetString( vendor ).Contains( "NVIDIA Corporation" ) ) {
+							h += 5; //TODO
+						}
+
+						Console.WriteLine(h);
+						validDevices.TryAdd( h, devices[j] );
 					}
 				}
 			}

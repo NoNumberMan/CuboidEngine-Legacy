@@ -437,11 +437,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "D:\\GameDev\\Cuboid Engine\\Cuboid\\CuboidGame\\CuboidGame.csproj",
+      "projectUniqueName": "D:\\GameDev\\CuboidEngine\\Cuboid\\CuboidGame\\CuboidGame.csproj",
       "projectName": "CuboidGame",
-      "projectPath": "D:\\GameDev\\Cuboid Engine\\Cuboid\\CuboidGame\\CuboidGame.csproj",
+      "projectPath": "D:\\GameDev\\CuboidEngine\\Cuboid\\CuboidGame\\CuboidGame.csproj",
       "packagesPath": "C:\\Users\\tommy\\.nuget\\packages\\",
-      "outputPath": "D:\\GameDev\\Cuboid Engine\\Cuboid\\CuboidGame\\obj\\",
+      "outputPath": "D:\\GameDev\\CuboidEngine\\Cuboid\\CuboidGame\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
         "C:\\Users\\tommy\\AppData\\Roaming\\NuGet\\NuGet.Config",
@@ -458,8 +458,8 @@
         "netcoreapp3.1": {
           "targetAlias": "netcoreapp3.1",
           "projectReferences": {
-            "D:\\GameDev\\Cuboid Engine\\Cuboid\\CuboidEngine\\CuboidEngine.csproj": {
-              "projectPath": "D:\\GameDev\\Cuboid Engine\\Cuboid\\CuboidEngine\\CuboidEngine.csproj"
+            "D:\\GameDev\\CuboidEngine\\Cuboid\\CuboidEngine\\CuboidEngine.csproj": {
+              "projectPath": "D:\\GameDev\\CuboidEngine\\Cuboid\\CuboidEngine\\CuboidEngine.csproj"
             }
           }
         }

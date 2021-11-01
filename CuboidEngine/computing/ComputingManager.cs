@@ -6,15 +6,14 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using OpenTK.Compute.OpenCL;
 
-namespace CuboidEngine
-{
-	internal static class ComputingManager
-	{
-		private static CLDevice? _device;
-		private static CLContext? _context;
-		private static CLCommandQueue? _queue;
-		private static readonly AssetManager<CLKernel> _kernels = new AssetManager<CLKernel>();
-		private static readonly Dictionary<ID, Queue<CLEvent>> _events = new Dictionary<ID, Queue<CLEvent>>();
+namespace CuboidEngine {
+	internal static class ComputingManager {
+		private static          CLDevice?                      _device;
+		private static          CLContext?                     _context;
+		private static          CLCommandQueue?                _queue;
+		private static readonly AssetManager<CLKernel>         _kernels = new AssetManager<CLKernel>();
+		private static readonly AssetManager<CLBuffer>         _buffers = new AssetManager<CLBuffer>();
+		private static readonly Dictionary<ID, Queue<CLEvent>> _events  = new Dictionary<ID, Queue<CLEvent>>();
 
 		public static void Init() {
 			CLResultCode platformResult = CL.GetPlatformIds( out CLPlatform[] platforms );
@@ -23,27 +22,22 @@ namespace CuboidEngine
 			SortedList<int, CLDevice> validDevices = new SortedList<int, CLDevice>();
 			for ( int i = 0; i < platforms.Length; ++i ) {
 				CLResultCode deviceResult = CL.GetDeviceIds( platforms[i], DeviceType.Gpu, out CLDevice[] devices );
-				if ( deviceResult == CLResultCode.Success ) {
+				if ( deviceResult == CLResultCode.Success )
 					for ( int j = 0; j < devices.Length; ++j ) {
 						//CL.GetDeviceInfo( devices[j], DeviceInfo.Name, out byte[] paramValue ); TODO
 						CL.GetDeviceInfo( devices[j], DeviceInfo.Vendor, out byte[] vendor );
 
-						int h = 0;
-						Console.WriteLine( System.Text.Encoding.Default.GetString( vendor ) );
-						if ( System.Text.Encoding.Default.GetString( vendor ).Contains( "NVIDIA Corporation" ) ) {
-							h += 5; //TODO
-						}
+						int h                                                                                      = 0;
+						if ( System.Text.Encoding.Default.GetString( vendor ).Contains( "NVIDIA Corporation" ) ) h += 5; //TODO
 
-						Console.WriteLine(h);
 						validDevices.TryAdd( h, devices[j] );
 					}
-				}
 			}
 
 			if ( validDevices.Count == 0 ) throw new Exception( "Could not find valid OpenCL device!" );
-			
-			_device = validDevices[validDevices.Keys.Last()];
-			_context = CL.CreateContext( IntPtr.Zero, new CLDevice[] { _device!.Value }, IntPtr.Zero, IntPtr.Zero, out CLResultCode contextResult );
+
+			_device  = validDevices[validDevices.Keys.Last()];
+			_context = CL.CreateContext( IntPtr.Zero, new CLDevice[] {_device!.Value}, IntPtr.Zero, IntPtr.Zero, out CLResultCode contextResult );
 			if ( contextResult != CLResultCode.Success ) throw new Exception( "Could not create OpenCL context!" );
 			_queue = CL.CreateCommandQueueWithProperties( _context.Value, _device!.Value.Handle, IntPtr.Zero, out CLResultCode queueResult );
 			if ( queueResult != CLResultCode.Success ) throw new Exception( "Could not create OpenCL command queue!" );
@@ -67,7 +61,7 @@ namespace CuboidEngine
 
 		public static ID LoadKernelFromSources( string kernelName, string[] kernelSources ) {
 			IntPtr[] strPtr = new IntPtr[kernelSources.Length];
-			uint[] strLen = new uint[kernelSources.Length];
+			uint[]   strLen = new uint[kernelSources.Length];
 			for ( int i = 0; i < kernelSources.Length; ++i ) {
 				strPtr[i] = Marshal.StringToHGlobalAuto( kernelSources[i] );
 				strLen[i] = ( uint ) kernelSources[i].Length;
@@ -75,7 +69,7 @@ namespace CuboidEngine
 
 			CLProgram program = CL.CreateProgramWithSource( _context!.Value, ( uint ) kernelSources.Length, strPtr, strLen, out CLResultCode programResult );
 			Debug.Assert( programResult == CLResultCode.Success, $"Failed to create program!" );
-			CL.BuildProgram( program, new CLDevice[] { _device!.Value }, String.Empty, null );
+			CL.BuildProgram( program, new CLDevice[] {_device!.Value}, string.Empty, null );
 			ValidateProgram( program );
 
 			CLKernel kernel = CL.CreateKernel( program, kernelName, out CLResultCode kernelResult );
@@ -98,15 +92,21 @@ namespace CuboidEngine
 			CL.SetKernelArg( kernel, index, in arg );
 		}
 
-		public static void RunKernel( ID id, int dim, int[] globalWorkSize, int[] localWorkSize) {
+		public static void SetKernelArg( ID id, uint index, ID bufferId ) {
+			CLKernel kernel = _kernels[id];
+			CLBuffer buffer = _buffers[bufferId];
+			CL.SetKernelArg( kernel, index, in buffer );
+		}
+
+		public static void RunKernel( ID id, int dim, int[] globalWorkSize, int[] localWorkSize ) {
 			CLKernel kernel = _kernels[id];
 
 			UIntPtr[] globalWorkSizeOffset = new UIntPtr[dim];
-			UIntPtr[] globalWorkSizePtr = new UIntPtr[dim];
-			UIntPtr[] localWorkSizePtr = new UIntPtr[dim];
+			UIntPtr[] globalWorkSizePtr    = new UIntPtr[dim];
+			UIntPtr[] localWorkSizePtr     = new UIntPtr[dim];
 			for ( int i = 0; i < dim; ++i ) {
 				globalWorkSizePtr[i] = ( UIntPtr ) globalWorkSize[i];
-				localWorkSizePtr[i] = ( UIntPtr ) localWorkSize[i];
+				localWorkSizePtr[i]  = ( UIntPtr ) localWorkSize[i];
 			}
 
 			CLResultCode result = CL.EnqueueNDRangeKernel( _queue!.Value, kernel, ( uint ) dim, globalWorkSizeOffset, globalWorkSizePtr, localWorkSizePtr, 0, null, out CLEvent evnt );
@@ -115,10 +115,47 @@ namespace CuboidEngine
 		}
 
 		public static void WaitForEvents( ID id ) {
-			while ( _events[id].TryDequeue( out CLEvent evnt ) ) CL.WaitForEvents( 1, new[] { evnt } );
+			while ( _events[id].TryDequeue( out CLEvent evnt ) ) CL.WaitForEvents( 1, new[] {evnt} );
 		}
 
-		[System.Diagnostics.Conditional( "DEBUG" )]
+		public static ID CreateBuffer<T>( T[] data ) where T : unmanaged {
+			Debug.Assert( _context != null, "OpenCL context does not exist!" );
+			CLBuffer buffer = CL.CreateBuffer( _context!.Value, MemoryFlags.ReadOnly, data, out CLResultCode result );
+			return _buffers.AddAsset( buffer );
+		}
+
+		public static ID CreateBuffer<T>( Span<T> data ) where T : unmanaged {
+			Debug.Assert( _context != null, "OpenCL context does not exist!" );
+			CLBuffer buffer = CL.CreateBuffer( _context!.Value, MemoryFlags.ReadOnly, data, out CLResultCode result ); //Does this upload the data?
+			return _buffers.AddAsset( buffer );
+		}
+
+		public static ID CreateBuffer( int size, MemoryFlags flags = 0 ) {
+			Debug.Assert( _context != null, "OpenCL context does not exist!" );
+			CLBuffer buffer = CL.CreateBuffer( _context!.Value, flags, ( UIntPtr ) size, IntPtr.Zero, out CLResultCode result );
+			return _buffers.AddAsset( buffer );
+		}
+
+		public static void EnqueueWriteBuffer<T>( ID id, int offset, Span<T> data ) where T : unmanaged {
+			Debug.Assert( _context != null, "OpenCL context does not exist!" );
+			CLBuffer     buffer = _buffers[id];
+			CLResultCode result = CL.EnqueueWriteBuffer( _queue!.Value, buffer, false, ( UIntPtr ) offset, data, null, out _ );
+			HandleCLResultCode( result );
+		}
+
+		public static void EnqueueReadBuffer<T>( ID id, T[] data ) where T : unmanaged {
+			Debug.Assert( _context != null, "OpenCL context does not exist!" );
+			CLBuffer     buffer = _buffers[id];
+			CLResultCode result = CL.EnqueueReadBuffer( _queue!.Value, buffer, false, UIntPtr.Zero, data, null, out _ );
+			HandleCLResultCode( result );
+		}
+
+		public static void WaitForFinish() {
+			CL.Finish( _queue!.Value );
+		}
+
+
+		[Conditional( "DEBUG" )]
 		private static void ValidateProgram( CLProgram program ) {
 			CLResultCode buildStatusResult = CL.GetProgramBuildInfo( program, _device!.Value, ProgramBuildInfo.Status, out byte[] code );
 			if ( buildStatusResult != CLResultCode.Success ) {
@@ -126,6 +163,11 @@ namespace CuboidEngine
 				Debug.Assert( buildStatusInfoResult == CLResultCode.Success, "Failed to get build error log!" );
 				throw new Exception( System.Text.Encoding.Default.GetString( log ) );
 			}
+		}
+
+		[Conditional( "DEBUG" )]
+		private static void HandleCLResultCode( CLResultCode result ) {
+			Debug.Assert( result == CLResultCode.Success, "OpenCL returned an error!" );
 		}
 	}
 }

@@ -1,14 +1,15 @@
 ﻿using System;
+using System.ComponentModel;
+using System.Diagnostics;
 using CuboidEngine.render;
+using OpenTK.Compute.OpenCL;
 using OpenTK.Graphics.ES11;
 using OpenTK.Mathematics;
 using OpenTK.Windowing.Common;
 using OpenTK.Windowing.Desktop;
 
-namespace CuboidEngine
-{
-	public static class CEngine
-	{
+namespace CuboidEngine {
+	public static class CEngine {
 		private static GameWindow? _window;
 		private static IGame?      _game;
 
@@ -46,73 +47,162 @@ namespace CuboidEngine
 			_window.RenderFrame += OnWindowRenderTick;
 			_window.UpdateFrame += OnWindowUpdateTick;
 			_window.Resize      += OnWindowResize;
+			_window.Closing     += OnWimdowClose;
 			_window.Run();
 		}
 
 		//WINDOW
-		public static bool IsMouseButtonDown( MouseButton button ) => _window!.MouseState.IsButtonDown( ( OpenTK.Windowing.GraphicsLibraryFramework.MouseButton ) button );
-
+		public static bool IsMouseButtonDown( MouseButton button ) {
+			return _window!.MouseState.IsButtonDown( ( OpenTK.Windowing.GraphicsLibraryFramework.MouseButton ) button );
+		}
 
 
 		//BASIC OPENGL
-		public static ID LoadShaderProgramFromFile( string[] shaderFiles ) => ShaderManager.LoadShaderProgramFromFile( shaderFiles );
-		public static ID LoadShaderProgramFromSource( string[] shaderSources ) => ShaderManager.LoadShaderProgramFromSource( shaderSources );
-		public static void UnloadShaderProgram( ID           id )                                           => ShaderManager.UnloadShaderProgram( id );
-		public static void UseShaderProgram( ID              id )                                           => ShaderManager.UseShaderProgram( id );
-		public static void SetShaderProgramUniformMatrix( ID id, ref Matrix4 matrix, Uniforms uniformType ) => ShaderManager.SetShaderProgramUniformMatrix( id, ref matrix, uniformType );
-		public static void SetShaderProgramUniformVector( ID id, Vector3     vector, Uniforms uniformType ) => ShaderManager.SetShaderProgramUniformVector( id, vector, uniformType );
+		public static ID LoadShaderProgramFromFile( string[] shaderFiles ) {
+			return ShaderManager.LoadShaderProgramFromFile( shaderFiles );
+		}
+
+		public static ID LoadShaderProgramFromSource( string[] shaderSources ) {
+			return ShaderManager.LoadShaderProgramFromSource( shaderSources );
+		}
+
+		public static void UnloadShaderProgram( ID id ) {
+			ShaderManager.UnloadShaderProgram( id );
+		}
+
+		public static void UseShaderProgram( ID id ) {
+			ShaderManager.UseShaderProgram( id );
+		}
+
+		public static void SetShaderProgramUniformMatrix( ID id, ref Matrix4 matrix, Uniforms uniformType ) {
+			ShaderManager.SetShaderProgramUniformMatrix( id, ref matrix, uniformType );
+		}
+
+		public static void SetShaderProgramUniformVector( ID id, Vector3 vector, Uniforms uniformType ) {
+			ShaderManager.SetShaderProgramUniformVector( id, vector, uniformType );
+		}
 
 
 		//BASIC OPENCL
-		public static ID   LoadKernelFromFiles( string   kernelName, string[] kernelFiles )   => ComputingManager.LoadKernelFromFiles( kernelName, kernelFiles );
-		public static ID   LoadKernelFromSources( string kernelName, string[] kernelSources ) => ComputingManager.LoadKernelFromSources( kernelName, kernelSources );
-		public static void UnloadKernel( ID              id )                                                        => ComputingManager.UnloadKernel( id );
-		public static void SetKernelArg<T>( ID           id, uint index, T     arg ) where T : unmanaged             => ComputingManager.SetKernelArg<T>( id, index, arg );
-		public static void RunKernel( ID                 id, int  dim,   int[] globalWorkSize, int[] localWorkSize ) => ComputingManager.RunKernel( id, dim, globalWorkSize, localWorkSize );
-		public static void WaitForEvents( ID             id ) => ComputingManager.WaitForEvents( id );
+		public static ID LoadKernelFromFiles( string kernelName, string[] kernelFiles ) {
+			return ComputingManager.LoadKernelFromFiles( kernelName, kernelFiles );
+		}
+
+		public static ID LoadKernelFromSources( string kernelName, string[] kernelSources ) {
+			return ComputingManager.LoadKernelFromSources( kernelName, kernelSources );
+		}
+
+		public static void UnloadKernel( ID id ) {
+			ComputingManager.UnloadKernel( id );
+		}
+
+		public static void SetKernelArg<T>( ID id, uint index, T arg ) where T : unmanaged {
+			ComputingManager.SetKernelArg<T>( id, index, arg );
+		}
+
+		public static void RunKernel( ID id, int dim, int[] globalWorkSize, int[] localWorkSize ) {
+			ComputingManager.RunKernel( id, dim, globalWorkSize, localWorkSize );
+		}
+
+		public static void WaitForEvents( ID id ) {
+			ComputingManager.WaitForEvents( id );
+		}
+
+		public static ID CreateBuffer<T>( T[] data ) where T : unmanaged {
+			return ComputingManager.CreateBuffer( data );
+		}
+
+		public static ID CreateBuffer<T>( Span<T> data ) where T : unmanaged {
+			return ComputingManager.CreateBuffer( data );
+		}
+
+		public static void EnqueueWriteBuffer<T>( ID id, int offset, Span<T> data ) where T : unmanaged {
+			ComputingManager.EnqueueWriteBuffer( id, offset, data );
+		}
+
+		public static void WaitForFinish() {
+			ComputingManager.WaitForFinish();
+		}
+
+		public static ID CreateBuffer( int size, MemoryFlags flags = 0 ) {
+			return ComputingManager.CreateBuffer( size, flags );
+		}
+
+		public static void EnqueueReadBuffer<T>( ID id, T[] data ) where T : unmanaged {
+			ComputingManager.EnqueueReadBuffer( id, data );
+		}
 
 
 		//WORLD
-		public static ID   GenerateWorld( IWorldGenerator generator )                                                                            => WorldManager.GenerateWorld( generator );
-		public static void DeleteWorld( ID                id )                                                                                   => WorldManager.RemoveWorld( id );
-		public static void SetWorldActive( ID             id )                                                                                   => WorldManager.SetWorldActive( id );
-		public static void SetWorldInactive( ID           id )                                                                                   => WorldManager.SetWorldInactive( id );
-		public static void GetCameraMatrix( ID            id, out Matrix4                 matrix )                                               => WorldManager.GetCameraMatrix( id, out matrix );
-		public static void GetCameraDirection( ID         id, out System.Numerics.Vector3 dir )                                                  => WorldManager.GetCameraDirection( id, out dir );
-		public static void SetCameraPosition( ID          id, float                       x,         float                   y,    float z )     => WorldManager.SetCameraPosition( id, x, y, z );
-		public static void SetCameraVelocity( ID          id, float                       dx,        float                   dy,   float dz )    => WorldManager.SetCameraVelocity( id, dx, dy, dz );
-		public static void SetCameraAngle( ID             id, float                       pitch,     float                   yaw,  float roll )  => WorldManager.SetCameraAngle( id, pitch, yaw, roll );
-		public static void SetCameraAngularVelocity( ID   id, float                       dpitch,    float                   dyaw, float droll ) => WorldManager.SetCameraAngularVelocity( id, dpitch, dyaw, droll );
-		public static void AccCameraDir( ID               id, float                       intensity, System.Numerics.Vector3 dir )                 => WorldManager.AccCameraDir( id, intensity, dir );
-		public static void AccCameraAngle( ID             id, float                       ddpitch,   float                   ddyaw, float ddroll ) => WorldManager.AccCameraAngle( id, ddpitch, ddyaw, ddroll );
+		public static ID GenerateWorld( IWorldGenerator generator ) {
+			return WorldManager.GenerateWorld( generator );
+		}
 
+		public static void DeleteWorld( ID id ) {
+			WorldManager.RemoveWorld( id );
+		}
+
+		public static void SetWorldActive( ID id ) {
+			WorldManager.SetWorldActive( id );
+		}
+
+		public static void SetWorldInactive( ID id ) {
+			WorldManager.SetWorldInactive( id );
+		}
+
+		public static void GetCameraMatrix( ID id, out Matrix4 matrix ) {
+			WorldManager.GetCameraMatrix( id, out matrix );
+		}
+
+		public static void GetCameraDirection( ID id, out System.Numerics.Vector3 dir ) {
+			WorldManager.GetCameraDirection( id, out dir );
+		}
+
+		public static void SetCameraPosition( ID id, float x, float y, float z ) {
+			WorldManager.SetCameraPosition( id, x, y, z );
+		}
+
+		public static void SetCameraVelocity( ID id, float dx, float dy, float dz ) {
+			WorldManager.SetCameraVelocity( id, dx, dy, dz );
+		}
+
+		public static void SetCameraAngle( ID id, float pitch, float yaw, float roll ) {
+			WorldManager.SetCameraAngle( id, pitch, yaw, roll );
+		}
+
+		public static void SetCameraAngularVelocity( ID id, float dpitch, float dyaw, float droll ) {
+			WorldManager.SetCameraAngularVelocity( id, dpitch, dyaw, droll );
+		}
+
+		public static void AccCameraDir( ID id, float intensity, System.Numerics.Vector3 dir ) {
+			WorldManager.AccCameraDir( id, intensity, dir );
+		}
+
+		public static void AccCameraAngle( ID id, float ddpitch, float ddyaw, float ddroll ) {
+			WorldManager.AccCameraAngle( id, ddpitch, ddyaw, ddroll );
+		}
 
 
 		//RENDERING
 		//internal static ID CreateRenderObject( Chunk chunk, Chunk? chunkNorth, Chunk? chunkSouth, Chunk? chunkEast, Chunk? chunkWest, Chunk? chunkTop, Chunk? chunkBottom, int xOffset, int yOffset, int zOffset ) =>
 		//	RenderManager.CreateRenderObject( chunk, chunkNorth, chunkSouth, chunkEast, chunkWest, chunkTop, chunkBottom, xOffset, yOffset, zOffset );
 
-		internal static void DeleteRenderObject( ID id ) => RenderManager.DeleteRenderObject( id );
-		internal static void RenderRenderObject( ID id ) => RenderManager.RenderRenderObject( id, Shaders.DefaultShaderId );
+		internal static void DeleteRenderObject( ID id ) {
+			RenderManager.DeleteRenderObject( id );
+		}
 
+		internal static void RenderRenderObject( ID id ) {
+			RenderManager.RenderRenderObject( id, Shaders.DefaultShaderId );
+		}
 
 
 		//CALLBACKS
 		private static void OnWindowLoad() {
+			OpenCLObjects.LoadOpenCLObjects();
 			Shaders.LoadShaders();
 
-			//kernelid = LoadKernelFromFiles( "raytracing_kernel", new string[] { "../../../../CuboidEngine/assets/kernels/raytracing.cl" } );
-
 			GL.Enable( EnableCap.DepthTest );
-			GL.Enable( EnableCap.CullFace );
-			GL.CullFace( CullFaceMode.Back );
-
-			GL.Enable( EnableCap.Blend );
-			GL.BlendFunc( BlendingFactor.SrcAlpha, BlendingFactor.OneMinusDstAlpha );
-
 			GL.ClearColor( 0.1f, 0.3f, 0.8f, 1.0f );
-
-			_game!.OnLoad();
 		}
 
 		private static void OnWindowMouseMove( MouseMoveEventArgs args ) {
@@ -138,18 +228,20 @@ namespace CuboidEngine
 				Console.WriteLine( $"Elapsed Time = {_timer.MeanTime}ms" );
 				_timer.Restart();
 			}
-			else _timer.AddSample( args.Time * 1000.0 );
+			else {
+				_timer.AddSample( args.Time * 1000.0 );
+			}
 
 			GL.Clear( ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit );
 
-			//Matrix4 mirror = Matrix4.Identity;
-			//mirror[2, 2] = -1.0f;
-			//Matrix4 projection = mirror * Matrix4.CreatePerspectiveFieldOfView( 1.0f, 16.0f / 9.0f, 0.1f, 1000.0f );
-			//SetShaderProgramUniformMatrix( Shaders.DefaultShaderId, ref projection, Uniforms.ProjectionMatrix );
-			WorldManager.RenderActiveWorlds();
+			WaitForFinish();
+			SetKernelArg( OpenCLObjects.RayMarcherKernel, 0, OpenCLObjects.VoxelBuffer ); //TODO move to render manager
+			SetKernelArg( OpenCLObjects.RayMarcherKernel, 1, OpenCLObjects.PixelBuffer );
+			RunKernel( OpenCLObjects.RayMarcherKernel, 2, new[] {1920, 1080}, new[] {64, 64} );
+			WaitForFinish();
 
-			//set args
-			//RunKernel( kernelid, 2, new [] { 1920, 1080 }, new [] { 64, 64 } );
+			RenderManager.RenderRayMarcherResult();
+			WorldManager.PrepareActiveWorlds();
 
 			_game!.OnRenderTick( args.Time ); //Does the game need this?
 
@@ -163,6 +255,10 @@ namespace CuboidEngine
 
 		private static void OnWindowResize( ResizeEventArgs args ) {
 			//stuff
+		}
+
+		private static void OnWimdowClose( CancelEventArgs args ) {
+			ComputingManager.Terminate();
 		}
 	}
 }

@@ -3,10 +3,8 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using OpenTK.Mathematics;
 
-namespace CuboidEngine
-{
-	internal static class WorldManager
-	{
+namespace CuboidEngine {
+	internal static class WorldManager {
 		private static readonly AssetManager<World> _worlds       = new AssetManager<World>();
 		private static readonly List<ID>            _activeWorlds = new List<ID>();
 
@@ -31,10 +29,9 @@ namespace CuboidEngine
 			for ( int i = 0; i < _activeWorlds.Count; ++i ) _worlds[_activeWorlds[i]].Update();
 		}
 
-		public static void RenderActiveWorlds() {
-			for ( int i = 0; i < _activeWorlds.Count; ++i ) _worlds[_activeWorlds[i]].Render();
+		public static void PrepareActiveWorlds() {
+			for ( int i = 0; i < _activeWorlds.Count; ++i ) _worlds[_activeWorlds[i]].Prepare();
 		}
-
 
 
 		//camera

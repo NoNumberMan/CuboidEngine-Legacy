@@ -1,6 +1,6 @@
 ﻿
+typedef uchar byte;
 
-
-__kernel void traceRays(float a, uint b, byte c) {
+__kernel void marchRays(__constant byte* voxels, __global float* pixels, __constant Camera cam) {
 
 }

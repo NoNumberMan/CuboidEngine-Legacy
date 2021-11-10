@@ -30,7 +30,8 @@ namespace CuboidEngine {
 		}
 
 		public static void PrepareActiveWorlds() {
-			for ( int i = 0; i < _activeWorlds.Count; ++i ) _worlds[_activeWorlds[i]].Prepare();
+			for ( int i = 0; i < _activeWorlds.Count; ++i )
+				_worlds[_activeWorlds[i]].Prepare();
 		}
 
 

@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
-using CuboidEngine.render;
 using OpenTK.Mathematics;
 
 namespace CuboidEngine {
@@ -33,6 +32,12 @@ namespace CuboidEngine {
 			//RenderManager.RayTracer( this, Camera, Shaders.ScreenShaderId );
 			for ( int i = 0; i < _chunks.Length; ++i ) //if chunk is dirty (has changed)
 				RenderManager.PrepareChunk( _chunks[i] );
+
+			float[] cam = new float[] {
+				Camera.GetPosition().X, Camera.GetPosition().Y, Camera.GetPosition().Z, Camera.GetDirection().X, Camera.GetDirection().Y, Camera.GetDirection().Z, 1920.0f, 1080.0f //TODO store screen size in camera
+			};
+
+			CEngine.EnqueueWriteBuffer<float>( OpenCLObjects.CameraBuffer, 0, cam );
 		}
 
 		public bool IsInRange( int cx, int cy, int cz ) {

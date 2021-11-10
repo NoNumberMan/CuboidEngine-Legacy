@@ -1,7 +1,7 @@
 ﻿using System;
 using System.ComponentModel;
 using System.Diagnostics;
-using CuboidEngine.render;
+using System.Net;
 using OpenTK.Compute.OpenCL;
 using OpenTK.Graphics.ES11;
 using OpenTK.Mathematics;
@@ -20,22 +20,28 @@ namespace CuboidEngine {
 			Console.WriteLine( "Hello World" );
 		}
 
+		private static unsafe IntPtr GetContext() {
+			return ( IntPtr ) OpenTK.Windowing.GraphicsLibraryFramework.GLFW.GetWGLContext( _window!.WindowPtr );
+		}
+
 		public static void Init( IGame game ) {
 			_game = game;
-
-			ComputingManager.Init();
 
 			GameWindowSettings   gws = GameWindowSettings.Default;
 			NativeWindowSettings nws = NativeWindowSettings.Default;
 			gws.IsMultiThreaded = false;
 			gws.RenderFrequency = 6000;
 			gws.UpdateFrequency = 6000;
+			nws.Profile         = ContextProfile.Compatability;
 
-			nws.APIVersion = Version.Parse( "4.1.0" );
+			nws.APIVersion = Version.Parse( "3.2.0" );
 			nws.Size       = new Vector2i( 1280, 720 );
 			nws.Title      = game.GetTitle();
 
-			_window             =  new GameWindow( gws, nws );
+			_window = new GameWindow( gws, nws );
+			string vendor = GL.GetString( StringName.Vendor );
+			Console.WriteLine( vendor );
+
 			_window.VSync       =  VSyncMode.Off;
 			_window.Load        += OnWindowLoad;
 			_window.MouseMove   += OnWindowMouseMove;
@@ -100,12 +106,12 @@ namespace CuboidEngine {
 			ComputingManager.SetKernelArg<T>( id, index, arg );
 		}
 
-		public static void RunKernel( ID id, int dim, int[] globalWorkSize, int[] localWorkSize ) {
-			ComputingManager.RunKernel( id, dim, globalWorkSize, localWorkSize );
+		public static void SetKernelArg( ID id, uint index, ID bufferId ) {
+			ComputingManager.SetKernelArg( id, index, bufferId );
 		}
 
-		public static void WaitForEvents( ID id ) {
-			ComputingManager.WaitForEvents( id );
+		public static void RunKernel( ID id, int dim, int[] globalWorkSize, int[] localWorkSize ) {
+			ComputingManager.RunKernel( id, dim, globalWorkSize, localWorkSize );
 		}
 
 		public static ID CreateBuffer<T>( T[] data ) where T : unmanaged {
@@ -198,11 +204,17 @@ namespace CuboidEngine {
 
 		//CALLBACKS
 		private static void OnWindowLoad() {
-			OpenCLObjects.LoadOpenCLObjects();
 			Shaders.LoadShaders();
+			ComputingManager.Init( GetContext(), _window!.Context.WindowPtr );
+			OpenCLObjects.LoadOpenCLObjects();
+
+			ComputingManager.EnqueueAquireGLObjects( OpenCLObjects.PixelBuffer );
+
 
 			GL.Enable( EnableCap.DepthTest );
 			GL.ClearColor( 0.1f, 0.3f, 0.8f, 1.0f );
+
+			_game!.OnLoad();
 		}
 
 		private static void OnWindowMouseMove( MouseMoveEventArgs args ) {
@@ -234,12 +246,15 @@ namespace CuboidEngine {
 
 			GL.Clear( ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit );
 
-			WaitForFinish();
-			SetKernelArg( OpenCLObjects.RayMarcherKernel, 0, OpenCLObjects.VoxelBuffer ); //TODO move to render manager
-			SetKernelArg( OpenCLObjects.RayMarcherKernel, 1, OpenCLObjects.PixelBuffer );
-			RunKernel( OpenCLObjects.RayMarcherKernel, 2, new[] {1920, 1080}, new[] {64, 64} );
-			WaitForFinish();
+			SetKernelArg( OpenCLObjects.RayMarcherKernel, 0, OpenCLObjects.PixelBuffer );
+			SetKernelArg( OpenCLObjects.RayMarcherKernel, 1, OpenCLObjects.VoxelBuffer );
+			SetKernelArg( OpenCLObjects.RayMarcherKernel, 2, OpenCLObjects.MapBuffer );
+			SetKernelArg( OpenCLObjects.RayMarcherKernel, 3, OpenCLObjects.CameraBuffer );
 
+			RunKernel( OpenCLObjects.RayMarcherKernel, 2, new[] {1920, 1080}, new[] {8, 8} );
+			WaitForFinish();
+			ComputingManager.EnqueueAquireGLObjects( OpenCLObjects.PixelBuffer );
+			WaitForFinish();
 			RenderManager.RenderRayMarcherResult();
 			WorldManager.PrepareActiveWorlds();
 
@@ -254,7 +269,7 @@ namespace CuboidEngine {
 		}
 
 		private static void OnWindowResize( ResizeEventArgs args ) {
-			//stuff
+			GL.Viewport( 0, 0, args.Width, args.Height );
 		}
 
 		private static void OnWimdowClose( CancelEventArgs args ) {

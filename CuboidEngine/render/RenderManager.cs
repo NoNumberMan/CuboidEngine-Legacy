@@ -14,15 +14,21 @@ namespace CuboidEngine {
 
 		public static void PrepareChunk( Chunk chunk ) {
 			CEngine.EnqueueWriteBuffer( OpenCLObjects.VoxelBuffer, 0, chunk.Voxels );
+			CEngine.EnqueueWriteBuffer( OpenCLObjects.MapBuffer, 0, chunk.Map0 );
+			CEngine.EnqueueWriteBuffer( OpenCLObjects.MapBuffer, 1, chunk.Map1 );
+			CEngine.EnqueueWriteBuffer( OpenCLObjects.MapBuffer, 1 + 8, chunk.Map2 );
+			CEngine.EnqueueWriteBuffer( OpenCLObjects.MapBuffer, 1 + 8 + 64, chunk.Map3 );
+			CEngine.EnqueueWriteBuffer( OpenCLObjects.MapBuffer, 1 + 8 + 64 + 512, chunk.Map4 );
 		}
 
 		public static void RenderRayMarcherResult() {
-			float[] pixels = new float[1920 * 1080 * 3];
-			CEngine.EnqueueReadBuffer( OpenCLObjects.PixelBuffer, pixels );
-			CEngine.WaitForFinish();
+			//float[] pixels = new float[1920 * 1080 * 3];
+			//CEngine.EnqueueReadBuffer( OpenCLObjects.PixelBuffer, pixels );
+			//CEngine.WaitForFinish();
 
-			int textureId = GL.GenTexture();
-			GL.BindTexture( TextureTarget.Texture2D, textureId );
+
+			/*int textureId = GL.GenTexture();
+			
 
 			//These are temporary. Will set the tex params properly when needed
 			GL.TexParameter( TextureTarget.Texture2D, TextureParameterName.TextureWrapS, ( int ) TextureWrapMode.Repeat );
@@ -31,7 +37,7 @@ namespace CuboidEngine {
 			GL.TexParameter( TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, ( int ) TextureMagFilter.Linear );
 
 			GL.TexImage2D( TextureTarget.Texture2D, 0, PixelInternalFormat.Rgb, 1920, 1080,
-				0, PixelFormat.Rgb, PixelType.UnsignedByte, pixels );
+				0, PixelFormat.Rgb, PixelType.Float, pixels );*/
 
 			//6. create full screen quad
 			int vao       = GL.GenVertexArray();
@@ -39,9 +45,9 @@ namespace CuboidEngine {
 			int texcoords = GL.GenBuffer();
 			int indices   = GL.GenBuffer();
 
-			float[] vertexArray   = new[] {0.0f, 0.0f, 1280.0f, 0.0f, 1280.0f, 720.0f, 0.0f, 720.0f};
-			float[] texcoordArray = new[] {0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f};
-			byte[]  indexArray    = new byte[] {0, 1, 2, 2, 3, 0};
+			float[] vertexArray   = {0.0f, 0.0f, 1280.0f, 0.0f, 1280.0f, 720.0f, 0.0f, 720.0f};
+			float[] texcoordArray = {0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f};
+			byte[]  indexArray    = {0, 1, 2, 2, 3, 0};
 
 			GL.BindVertexArray( vao );
 			GL.BindBuffer( BufferTarget.ArrayBuffer, vertices );
@@ -63,11 +69,12 @@ namespace CuboidEngine {
 			CEngine.UseShaderProgram( Shaders.ScreenShaderId );
 			CEngine.SetShaderProgramUniformMatrix( Shaders.ScreenShaderId, ref proj, Uniforms.ProjectionMatrix );
 
+			int id = TextureManager.GetTextureId( OpenCLObjects.TextureID );
+			GL.BindTexture( TextureTarget.Texture2D, id );
 			GL.DrawElements( PrimitiveType.Triangles, 6, DrawElementsType.UnsignedByte, 0 );
 
 			//8. clean up
 			GL.BindTexture( TextureTarget.Texture2D, 0 );
-			GL.DeleteTexture( textureId );
 			GL.BindBuffer( BufferTarget.ArrayBuffer, 0 );
 			GL.BindBuffer( BufferTarget.ElementArrayBuffer, 0 );
 			GL.BindVertexArray( 0 );

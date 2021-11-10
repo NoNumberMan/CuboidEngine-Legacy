@@ -3,19 +3,22 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Net.Http;
 using System.Runtime.InteropServices;
+using System.Text;
 using OpenTK.Compute.OpenCL;
+using OpenTK.Graphics.OpenGL4;
 
 namespace CuboidEngine {
 	internal static class ComputingManager {
-		private static          CLDevice?                      _device;
-		private static          CLContext?                     _context;
-		private static          CLCommandQueue?                _queue;
-		private static readonly AssetManager<CLKernel>         _kernels = new AssetManager<CLKernel>();
-		private static readonly AssetManager<CLBuffer>         _buffers = new AssetManager<CLBuffer>();
-		private static readonly Dictionary<ID, Queue<CLEvent>> _events  = new Dictionary<ID, Queue<CLEvent>>();
+		private static          CLDevice?              _device;
+		private static          CLContext?             _context;
+		private static          CLCommandQueue?        _queue;
+		private static readonly AssetManager<CLKernel> _kernels = new AssetManager<CLKernel>();
 
-		public static void Init() {
+		private static readonly AssetManager<CLBuffer> _buffers = new AssetManager<CLBuffer>();
+
+		public static void Init( IntPtr glContext, IntPtr glPlatform ) {
 			CLResultCode platformResult = CL.GetPlatformIds( out CLPlatform[] platforms );
 			if ( platformResult != CLResultCode.Success ) throw new Exception( "Could not find OpenCL platform!" );
 
@@ -27,17 +30,21 @@ namespace CuboidEngine {
 						//CL.GetDeviceInfo( devices[j], DeviceInfo.Name, out byte[] paramValue ); TODO
 						CL.GetDeviceInfo( devices[j], DeviceInfo.Vendor, out byte[] vendor );
 
-						int h                                                                                      = 0;
-						if ( System.Text.Encoding.Default.GetString( vendor ).Contains( "NVIDIA Corporation" ) ) h += 5; //TODO
-
+						int h                                                                          = 0;
+						if ( Encoding.Default.GetString( vendor ).Contains( "NVIDIA Corporation" ) ) h += 5; //TODO
 						validDevices.TryAdd( h, devices[j] );
 					}
 			}
 
 			if ( validDevices.Count == 0 ) throw new Exception( "Could not find valid OpenCL device!" );
 
-			_device  = validDevices[validDevices.Keys.Last()];
-			_context = CL.CreateContext( IntPtr.Zero, new CLDevice[] {_device!.Value}, IntPtr.Zero, IntPtr.Zero, out CLResultCode contextResult );
+			_device = validDevices[validDevices.Keys.Last()];
+			CL.GetDeviceInfo( _device!.Value, DeviceInfo.Vendor, out byte[] v2 );
+
+			_context = CL.CreateContext(
+				new[] {( IntPtr ) CLGL.ContextProperties.GlContextKHR, glContext, ( IntPtr ) CLGL.ContextProperties.WglHDCKHR, glPlatform, ( IntPtr ) ContextProperties.ContextPlatform, platforms[0].Handle, IntPtr.Zero},
+				new CLDevice[] {_device!.Value}, IntPtr.Zero, IntPtr.Zero, out CLResultCode contextResult );
+
 			if ( contextResult != CLResultCode.Success ) throw new Exception( "Could not create OpenCL context!" );
 			_queue = CL.CreateCommandQueueWithProperties( _context.Value, _device!.Value.Handle, IntPtr.Zero, out CLResultCode queueResult );
 			if ( queueResult != CLResultCode.Success ) throw new Exception( "Could not create OpenCL command queue!" );
@@ -67,16 +74,15 @@ namespace CuboidEngine {
 				strLen[i] = ( uint ) kernelSources[i].Length;
 			}
 
-			CLProgram program = CL.CreateProgramWithSource( _context!.Value, ( uint ) kernelSources.Length, strPtr, strLen, out CLResultCode programResult );
+			CLProgram program = CL.CreateProgramWithSource( _context!.Value, kernelSources[0], out CLResultCode programResult );
 			Debug.Assert( programResult == CLResultCode.Success, $"Failed to create program!" );
-			CL.BuildProgram( program, new CLDevice[] {_device!.Value}, string.Empty, null );
+			CL.BuildProgram( program, new CLDevice[] {_device!.Value}, string.Empty, ( evt, data ) => { } );
 			ValidateProgram( program );
 
 			CLKernel kernel = CL.CreateKernel( program, kernelName, out CLResultCode kernelResult );
 			Debug.Assert( kernelResult == CLResultCode.Success, $"Failed to create kernel!" );
 
 			ID id = _kernels.AddAsset( kernel );
-			_events.Add( id, new Queue<CLEvent>() );
 			return id;
 		}
 
@@ -84,7 +90,6 @@ namespace CuboidEngine {
 			CLKernel kernel = _kernels[id];
 			CL.ReleaseKernel( kernel );
 			_kernels.RemoveAsset( id );
-			_events.Remove( id );
 		}
 
 		public static void SetKernelArg<T>( ID id, uint index, T arg ) where T : unmanaged {
@@ -105,17 +110,15 @@ namespace CuboidEngine {
 			UIntPtr[] globalWorkSizePtr    = new UIntPtr[dim];
 			UIntPtr[] localWorkSizePtr     = new UIntPtr[dim];
 			for ( int i = 0; i < dim; ++i ) {
-				globalWorkSizePtr[i] = ( UIntPtr ) globalWorkSize[i];
-				localWorkSizePtr[i]  = ( UIntPtr ) localWorkSize[i];
+				globalWorkSizeOffset[i] = UIntPtr.Zero;
+				globalWorkSizePtr[i]    = ( UIntPtr ) globalWorkSize[i];
+				localWorkSizePtr[i]     = ( UIntPtr ) localWorkSize[i];
 			}
 
 			CLResultCode result = CL.EnqueueNDRangeKernel( _queue!.Value, kernel, ( uint ) dim, globalWorkSizeOffset, globalWorkSizePtr, localWorkSizePtr, 0, null, out CLEvent evnt );
-			Debug.Assert( result == CLResultCode.Success, "Failed to enqueue kernel!" );
-			_events[id].Enqueue( evnt );
-		}
+			CL.ReleaseEvent( evnt );
 
-		public static void WaitForEvents( ID id ) {
-			while ( _events[id].TryDequeue( out CLEvent evnt ) ) CL.WaitForEvents( 1, new[] {evnt} );
+			Debug.Assert( result == CLResultCode.Success, "Failed to enqueue kernel!" );
 		}
 
 		public static ID CreateBuffer<T>( T[] data ) where T : unmanaged {
@@ -139,15 +142,41 @@ namespace CuboidEngine {
 		public static void EnqueueWriteBuffer<T>( ID id, int offset, Span<T> data ) where T : unmanaged {
 			Debug.Assert( _context != null, "OpenCL context does not exist!" );
 			CLBuffer     buffer = _buffers[id];
-			CLResultCode result = CL.EnqueueWriteBuffer( _queue!.Value, buffer, false, ( UIntPtr ) offset, data, null, out _ );
+			CLResultCode result = CL.EnqueueWriteBuffer( _queue!.Value, buffer, false, ( UIntPtr ) offset, data, null, out CLEvent evnt );
+			CL.ReleaseEvent( evnt );
 			HandleCLResultCode( result );
 		}
 
 		public static void EnqueueReadBuffer<T>( ID id, T[] data ) where T : unmanaged {
 			Debug.Assert( _context != null, "OpenCL context does not exist!" );
 			CLBuffer     buffer = _buffers[id];
-			CLResultCode result = CL.EnqueueReadBuffer( _queue!.Value, buffer, false, UIntPtr.Zero, data, null, out _ );
+			CLResultCode result = CL.EnqueueReadBuffer( _queue!.Value, buffer, false, UIntPtr.Zero, data, null, out CLEvent evnt );
+			CL.ReleaseEvent( evnt );
 			HandleCLResultCode( result );
+		}
+
+		public static void EnqueueAquireGLObjects( ID id ) {
+			Debug.Assert( _context != null, "OpenCL context does not exist!" );
+			CLBuffer     buffer = _buffers[id];
+			CLResultCode result = CLGL.EnqueueAcquireGLObjects( _queue!.Value, 1, new[] {buffer}, 0, null, out CLEvent evnt );
+			CL.ReleaseEvent( evnt );
+			HandleCLResultCode( result );
+		}
+
+		public static void EnqueueReleaseGLObjects( ID id ) {
+			Debug.Assert( _context != null, "OpenCL context does not exist!" );
+			CLBuffer     buffer = _buffers[id];
+			CLResultCode result = CLGL.EnqueueReleaseGLObjects( _queue!.Value, 1, new[] {buffer}, 0, null, out CLEvent evnt );
+			CL.ReleaseEvent( evnt );
+			HandleCLResultCode( result );
+		}
+
+		public static ID CreateTextureBuffer( ID textureId ) {
+			Debug.Assert( _context != null, "OpenCL context does not exist!" );
+			CLBuffer textureBuffer = CLGL.CreateFromGLTexture( _context!.Value, MemoryFlags.WriteOnly, ( int ) TextureTarget.Texture2D, 0,
+				TextureManager.GetTextureId( textureId ), out CLResultCode result );
+			HandleCLResultCode( result );
+			return _buffers.AddAsset( textureBuffer );
 		}
 
 		public static void WaitForFinish() {
@@ -157,12 +186,10 @@ namespace CuboidEngine {
 
 		[Conditional( "DEBUG" )]
 		private static void ValidateProgram( CLProgram program ) {
-			CLResultCode buildStatusResult = CL.GetProgramBuildInfo( program, _device!.Value, ProgramBuildInfo.Status, out byte[] code );
-			if ( buildStatusResult != CLResultCode.Success ) {
-				CLResultCode buildStatusInfoResult = CL.GetProgramBuildInfo( program, _device!.Value, ProgramBuildInfo.Log, out byte[] log );
-				Debug.Assert( buildStatusInfoResult == CLResultCode.Success, "Failed to get build error log!" );
-				throw new Exception( System.Text.Encoding.Default.GetString( log ) );
-			}
+			CLResultCode buildStatusInfoResult = CL.GetProgramBuildInfo( program, _device!.Value, ProgramBuildInfo.Log, out byte[] log );
+			Debug.Assert( buildStatusInfoResult == CLResultCode.Success, "Failed to get build error log!" );
+
+			if ( log.Length > 2 ) throw new Exception( Encoding.Default.GetString( log ) );
 		}
 
 		[Conditional( "DEBUG" )]

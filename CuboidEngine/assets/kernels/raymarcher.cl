@@ -3,9 +3,10 @@
 #define MAP2_OFFSET 9
 #define MAP3_OFFSET 73
 #define MAP4_OFFSET 585
+#define MAP5_OFFSET 4681
 
-__constant int MAP_OFFSET[5] = { MAP0_OFFSET, MAP1_OFFSET, MAP2_OFFSET, MAP3_OFFSET, MAP4_OFFSET };
-
+__constant int MAP_OFFSET[6] = { MAP0_OFFSET, MAP1_OFFSET, MAP2_OFFSET, MAP3_OFFSET, MAP4_OFFSET, MAP5_OFFSET };
+__constant int CHUNK_VOXEL_OFFSET = 32768;
 
 typedef uchar byte;
 
@@ -34,17 +35,48 @@ void get_from_stack( Ray* ray, RayStack* stack ) {
 	*ray = stack->stack[stack->ptr--];
 }
 
-byte getVolumeColor( __constant byte* voxels, __constant byte* map, int3* vPos, int lvl ) {
-	//we know, we only have a chunk at 0,0,1
-	if ( vPos->x < 0 || vPos->x >= 32 || vPos->y < 0 || vPos->y >= 32 || vPos->z < 32 || vPos->z >= 64 ) return 0;
+int bin_search(__constant ulong* map, ulong key) {
+	int first = 0;
+	int last = (int) map[0] - 1;
+	int mid = (int) last / 2;
 
-	if ( lvl < 5 ) {
-		//do something with map
-		int offset = MAP_OFFSET[lvl];
-		int r = 5 - lvl;
-		return map[offset + (vPos->x >> r) + ((vPos->y >> r) << lvl) + (((vPos->z-32) >> r) << (2 * lvl))];
+	while ( first <= last ) {
+		ulong val = map[2 * (mid + 1)];
+		if (val < key) {
+			first = mid + 1;
+		}
+		else if (val == key) {
+			return mid;
+		}
+		else {
+			last = mid - 1;
+		}
+
+		mid = ( first + last ) / 2;
 	}
-	else return voxels[ vPos->x + 32 * vPos->y + 32 * 32 * ( vPos->z - 32 ) ]; //TODO figure something out with chunk offsets or something
+
+	return -1;
+}
+
+byte getVolumeColor( __constant byte* world, __constant ulong* map, int3* cPos, int3* vPos, int lvl ) {	
+	ulong index = (ulong)(cPos->x + CHUNK_VOXEL_OFFSET) + 65536ul * (ulong)(cPos->y + CHUNK_VOXEL_OFFSET) + 65536ul * 65536ul * (ulong)(cPos->z + CHUNK_VOXEL_OFFSET);
+
+	//bin search map for chunkpos
+	//int worldIdx = -1;
+	//for (int i = 0; i < map[0]; ++i) {
+	//	if (index == map[2 * (i + 1)]) {
+	//		worldIdx = map[2 * (i+1) + 1];
+	//		break;
+	//	}
+	//}
+
+	int worldIdx = bin_search( map, index );
+
+	if ( worldIdx == -1 ) return 0;
+
+	int offset = MAP_OFFSET[lvl];
+	int r = 5 - lvl;
+	return world[worldIdx * 37449 + offset + ((vPos->x - 32 * cPos->x) >> r) + (((vPos->y - 32 * cPos->y) >> r) << lvl) + (((vPos->z - 32 * cPos->z) >> r) << (2 * lvl))];
 }
 
 float intersect( float3* pos, float3* dir, float3* dirInv, float size ) {
@@ -58,12 +90,15 @@ float intersect( float3* pos, float3* dir, float3* dirInv, float size ) {
 
 
 //TODO
-//1. more chunks / update chunk structure
-//2. LOD
-//3. shadow rays
-//4. dynamic chunk fetching
-//5. path tracer (tm)
-__kernel void marchRays(__write_only image2d_t pixels, __constant byte* voxels, __constant byte* map, __constant float* camArray ) {
+//1x. update chunk structure / more chunks
+//2x. LOD
+//3. regular world generation
+//4. cleanup/tweaking
+//5. dynamic chunk fetching
+//6. shadow rays
+//7. adding lights
+//8. path tracer (tm)
+__kernel void marchRays(__write_only image2d_t pixels, __constant byte* world, __constant ulong* map, __constant float* camArray ) {
 	int px = get_global_id(0);
 	int py = get_global_id(1);
 
@@ -74,10 +109,10 @@ __kernel void marchRays(__write_only image2d_t pixels, __constant byte* voxels, 
 	cam.size = (float2)(camArray[6], camArray[7]);
 	
 	float3 up = (float3)(0.0f, 1.0f, 0.0f);
-	float3 camSpaceX = normalize(cross(up, cam.dir)); //TODO 
+	float3 camSpaceX = normalize(cross(up, cam.dir));
 	float3 camSpaceY = ( cam.size.y / cam.size.x ) * cross( cam.dir, camSpaceX );
 	float3 offset = ( py / cam.size.y - 0.5f ) * camSpaceY + ( px / cam.size.x - 0.5f ) * camSpaceX + 0.62f * cam.dir;
-
+	int3 cPosCam = (int3)((int)floor(cam.pos.x / 32.0f), (int)floor(cam.pos.y / 32.0f), (int)floor(cam.pos.z / 32.0f));
 	//Ray startRay;
 	//startRay.pos = world;
 	//startRay.dir = world - cam.pos;
@@ -102,12 +137,14 @@ __kernel void marchRays(__write_only image2d_t pixels, __constant byte* voxels, 
 
 		//start marching
 		int lvl = 0;
-		while ( steps++ < 64 ) {
+		while ( steps++ < 128 ) {
 			int3 vPos = (int3)((int)floor(ray.pos.x), (int)floor(ray.pos.y), (int)floor(ray.pos.z)); //voxel pos in world coordinates
+			int3 cPos = (int3)((int)floor(ray.pos.x / 32.0f), (int)floor(ray.pos.y / 32.0f), (int)floor(ray.pos.z / 32.0f));
+			int cd = ( cPos.x - cPosCam.x ) * (cPos.x - cPosCam.x) + (cPos.y - cPosCam.y) * (cPos.y - cPosCam.y) + (cPos.z - cPosCam.z) * (cPos.z - cPosCam.z);
 
-			byte vc = getVolumeColor( voxels, map, &vPos, lvl );
+			byte vc = getVolumeColor( world, map, &cPos, &vPos, lvl );
 			if ( vc > 0 ) {
-				if (lvl < 5 ) {
+				if (lvl < 5 - ( int ) ( cd / 16 ) ) {
 					++lvl;
 					continue;
 				}
@@ -123,8 +160,6 @@ __kernel void marchRays(__write_only image2d_t pixels, __constant byte* voxels, 
 				color = ((float3)( rf, gf, bf ));
 				break;
 			}
-
-			
 
 			float size = (float)(32 >> lvl);
 			float3 rPos = ray.pos - size * floor(ray.pos / size);

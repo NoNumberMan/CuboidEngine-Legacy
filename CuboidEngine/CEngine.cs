@@ -53,7 +53,7 @@ namespace CuboidEngine {
 			_window.RenderFrame += OnWindowRenderTick;
 			_window.UpdateFrame += OnWindowUpdateTick;
 			_window.Resize      += OnWindowResize;
-			_window.Closing     += OnWimdowClose;
+			_window.Closed      += OnWindowClose;
 			_window.Run();
 		}
 
@@ -272,7 +272,7 @@ namespace CuboidEngine {
 			GL.Viewport( 0, 0, args.Width, args.Height );
 		}
 
-		private static void OnWimdowClose( CancelEventArgs args ) {
+		private static void OnWindowClose() {
 			ComputingManager.Terminate();
 		}
 	}

@@ -12,13 +12,13 @@ namespace CuboidEngine {
 		private static readonly AssetManager<RenderObject> _renderObjects = new AssetManager<RenderObject>();
 
 
-		public static void PrepareChunk( Chunk chunk ) {
-			CEngine.EnqueueWriteBuffer( OpenCLObjects.VoxelBuffer, 0, chunk.Voxels );
-			CEngine.EnqueueWriteBuffer( OpenCLObjects.MapBuffer, 0, chunk.Map0 );
-			CEngine.EnqueueWriteBuffer( OpenCLObjects.MapBuffer, 1, chunk.Map1 );
-			CEngine.EnqueueWriteBuffer( OpenCLObjects.MapBuffer, 1 + 8, chunk.Map2 );
-			CEngine.EnqueueWriteBuffer( OpenCLObjects.MapBuffer, 1 + 8 + 64, chunk.Map3 );
-			CEngine.EnqueueWriteBuffer( OpenCLObjects.MapBuffer, 1 + 8 + 64 + 512, chunk.Map4 );
+		public static void PrepareChunk( Chunk chunk, int offset ) {
+			CEngine.EnqueueWriteBuffer( OpenCLObjects.VoxelBuffer, offset + 0, chunk.Vol0 );
+			CEngine.EnqueueWriteBuffer( OpenCLObjects.VoxelBuffer, offset + 1, chunk.Vol1 );
+			CEngine.EnqueueWriteBuffer( OpenCLObjects.VoxelBuffer, offset + 1 + 8, chunk.Vol2 );
+			CEngine.EnqueueWriteBuffer( OpenCLObjects.VoxelBuffer, offset + 1 + 8 + 64, chunk.Vol3 );
+			CEngine.EnqueueWriteBuffer( OpenCLObjects.VoxelBuffer, offset + 1 + 8 + 64 + 512, chunk.Vol4 );
+			CEngine.EnqueueWriteBuffer( OpenCLObjects.VoxelBuffer, offset + 1 + 8 + 64 + 512 + 4096, chunk.Voxels );
 		}
 
 		public static void RenderRayMarcherResult() {

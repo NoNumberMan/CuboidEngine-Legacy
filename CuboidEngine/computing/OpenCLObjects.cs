@@ -17,8 +17,8 @@ namespace CuboidEngine {
 
 		public static void LoadOpenCLObjects() {
 			RayMarcherKernel = CEngine.LoadKernelFromFiles( "marchRays", new[] {"../../../../CuboidEngine/assets/kernels/raymarcher.cl"} );
-			VoxelBuffer      = CEngine.CreateBuffer( Chunk.ChunkSize, MemoryFlags.ReadOnly );
-			MapBuffer        = CEngine.CreateBuffer( 1 + 8 + 64 + 512 + 4096, MemoryFlags.ReadOnly );
+			VoxelBuffer      = CEngine.CreateBuffer( 512 * 37449, MemoryFlags.ReadOnly );
+			MapBuffer        = CEngine.CreateBuffer( 512 * 2 * sizeof( ulong ), MemoryFlags.ReadOnly );
 
 
 			TextureID    = TextureManager.CreateEmptyTexture();

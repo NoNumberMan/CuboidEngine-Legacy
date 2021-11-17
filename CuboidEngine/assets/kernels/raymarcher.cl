@@ -22,6 +22,11 @@ typedef struct _Ray { //64 bytes max
 	float3 dirInv;
 } Ray;
 
+typedef struct _Voxel {
+	byte color;
+	byte allum;
+} Voxel;
+
 typedef struct _RayStack {
 	Ray stack[16];
 	int ptr;
@@ -58,21 +63,12 @@ int bin_search(__constant ulong* map, ulong key) {
 	return -1;
 }
 
-byte getVolumeColor( __constant byte* world, __constant ulong* map, int3* cPos, int3* vPos, int lvl ) {	
+Voxel getVolumeColor( __constant Voxel* world, __constant ulong* map, int3* cPos, int3* vPos, int lvl ) {	
 	ulong index = (ulong)(cPos->x + CHUNK_VOXEL_OFFSET) + 65536ul * (ulong)(cPos->y + CHUNK_VOXEL_OFFSET) + 65536ul * 65536ul * (ulong)(cPos->z + CHUNK_VOXEL_OFFSET);
-
-	//bin search map for chunkpos
-	//int worldIdx = -1;
-	//for (int i = 0; i < map[0]; ++i) {
-	//	if (index == map[2 * (i + 1)]) {
-	//		worldIdx = map[2 * (i+1) + 1];
-	//		break;
-	//	}
-	//}
 
 	int worldIdx = bin_search( map, index );
 
-	if ( worldIdx == -1 ) return 0;
+	if ( worldIdx == -1 ) return (Voxel){ 0, 0 };
 
 	int offset = MAP_OFFSET[lvl];
 	int r = 5 - lvl;
@@ -94,10 +90,11 @@ float intersect( float3* pos, float3* dir, float3* dirInv, float size ) {
 //2x. LOD
 //3. regular world generation
 //4. cleanup/tweaking
-//5. dynamic chunk fetching
-//6. shadow rays
-//7. adding lights
-//8. path tracer (tm)
+//5. mutiple pointers, point to same chunk
+//6. dynamic chunk fetching
+//7. shadow rays
+//8. adding lights
+//9. path tracer (tm)
 __kernel void marchRays(__write_only image2d_t pixels, __constant byte* world, __constant ulong* map, __constant float* camArray ) {
 	int px = get_global_id(0);
 	int py = get_global_id(1);
@@ -142,8 +139,9 @@ __kernel void marchRays(__write_only image2d_t pixels, __constant byte* world, _
 			int3 cPos = (int3)((int)floor(ray.pos.x / 32.0f), (int)floor(ray.pos.y / 32.0f), (int)floor(ray.pos.z / 32.0f));
 			int cd = ( cPos.x - cPosCam.x ) * (cPos.x - cPosCam.x) + (cPos.y - cPosCam.y) * (cPos.y - cPosCam.y) + (cPos.z - cPosCam.z) * (cPos.z - cPosCam.z);
 
-			byte vc = getVolumeColor( world, map, &cPos, &vPos, lvl );
-			if ( vc > 0 ) {
+			Voxel voxel = getVolumeColor( (__constant Voxel*)world, map, &cPos, &vPos, lvl );
+			if ( voxel.allum > 0 ) {
+				//if (lvl < 5 ) {
 				if (lvl < 5 - ( int ) ( cd / 16 ) ) {
 					++lvl;
 					continue;
@@ -151,11 +149,11 @@ __kernel void marchRays(__write_only image2d_t pixels, __constant byte* world, _
 
 				//another bounce
 				//make new ray and push
-				int r = ( ( vc >> 6 ) & 3 );
-				int g = ( ( vc >> 4 ) & 3 );
-				int b = ( ( vc >> 2 ) & 3 );
-				float rf = (float)r / 3.0f;
-				float gf = (float)g / 3.0f;
+				int r = ( ( voxel.color >> 5 ) & 7 );
+				int g = ( ( voxel.color >> 2 ) & 7 );
+				int b = ( ( voxel.color >> 0 ) & 3 );
+				float rf = (float)r / 7.0f;
+				float gf = (float)g / 7.0f;
 				float bf = (float)b / 3.0f;
 				color = ((float3)( rf, gf, bf ));
 				break;

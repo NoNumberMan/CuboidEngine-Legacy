@@ -9,7 +9,11 @@ namespace CuboidEngine {
 		private static readonly List<ID>            _activeWorlds = new List<ID>();
 
 		public static ID GenerateWorld( IWorldGenerator generator ) {
-			return _worlds.AddAsset( new World() );
+			return _worlds.AddAsset( new World( generator ) );
+		}
+
+		public static ID LoadWorld( string worldFile ) {
+			return _worlds.AddAsset( new World( null ) );
 		}
 
 		public static void RemoveWorld( ID id ) {

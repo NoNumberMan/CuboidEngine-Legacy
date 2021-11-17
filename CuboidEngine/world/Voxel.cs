@@ -1,13 +1,22 @@
-﻿namespace CuboidEngine
-{
-	internal struct Voxel
-	{
-		public byte color; //2r,2g,2b,2a
+﻿using System.Runtime.InteropServices;
 
-		public int Alpha => color & 3;
+namespace CuboidEngine {
+	[StructLayout( LayoutKind.Sequential, Pack = 1, Size = 2 )]
+	public struct Voxel {
+		public byte color; //3r, 3g, 2b 8bit color
+		public byte allum; //1 alpha or luminance, 7 either alpha or lum
 
-		public Voxel( byte color ) {
+		public bool Empty => allum == 0;
+
+		public Voxel( byte color, byte allum ) {
 			this.color = color;
+			this.allum = allum;
+		}
+
+		public Voxel( byte color, bool isAlpha, byte allum ) {
+			this.color =  color;
+			this.allum =  ( byte ) ( ( allum << 1 ) & 255 );
+			this.allum |= ( byte ) ( isAlpha ? 0b0 : 0b1 );
 		}
 	}
 }

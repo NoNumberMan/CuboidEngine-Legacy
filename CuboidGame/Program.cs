@@ -2,10 +2,8 @@
 using System.Numerics;
 using CuboidEngine;
 
-namespace CuboidGame
-{
-	public class Program : IGame
-	{
+namespace CuboidGame {
+	public class Program : IGame {
 		public static void Main( string[] args ) {
 			CEngine.Init( new Program() );
 		}
@@ -15,8 +13,9 @@ namespace CuboidGame
 		}
 
 		private ID _world;
+
 		public void OnLoad() {
-			_world = CEngine.GenerateWorld( WorldGenerators.FlatWorld );
+			_world = CEngine.GenerateWorld( WorldGenerators.RandomWorld );
 			CEngine.SetWorldActive( _world );
 			//load world
 		}
@@ -53,13 +52,9 @@ namespace CuboidGame
 				CEngine.AccCameraDir( _world!, 0.5f, -dir );
 			}
 
-			if ( key == Keys.Space && state == KeyState.Down ) {
-				CEngine.AccCameraDir( _world!, 0.5f, -Vector3.UnitY );
-			}
+			if ( key == Keys.Space && state == KeyState.Down ) CEngine.AccCameraDir( _world!, 0.5f, -Vector3.UnitY );
 
-			if ( key == Keys.LeftShift && state == KeyState.Down ) {
-				CEngine.AccCameraDir( _world!, 0.5f, Vector3.UnitY );
-			}
+			if ( key == Keys.LeftShift && state == KeyState.Down ) CEngine.AccCameraDir( _world!, 0.5f, Vector3.UnitY );
 		}
 
 		public void OnRenderTick( double dt ) {

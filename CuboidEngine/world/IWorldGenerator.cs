@@ -1,7 +1,5 @@
-﻿namespace CuboidEngine
-{
-	public interface IWorldGenerator
-	{
-		//public void Generate( Voxel[] chunk, int x, int y );
+﻿namespace CuboidEngine {
+	public interface IWorldGenerator {
+		public void Generate( Chunk chunk, int cx, int cy, int cz );
 	}
 }

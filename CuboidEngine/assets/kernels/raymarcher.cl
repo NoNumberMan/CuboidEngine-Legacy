@@ -1,12 +1,6 @@
-﻿#define MAP0_OFFSET 0
-#define MAP1_OFFSET 1
-#define MAP2_OFFSET 9
-#define MAP3_OFFSET 73
-#define MAP4_OFFSET 585
-#define MAP5_OFFSET 4681
-
-__constant int MAP_OFFSET[6] = { MAP0_OFFSET, MAP1_OFFSET, MAP2_OFFSET, MAP3_OFFSET, MAP4_OFFSET, MAP5_OFFSET };
-__constant int CHUNK_VOXEL_OFFSET = 32768;
+﻿
+__constant int CHUNK_OFFSET = 32768;
+__constant float3 light_dir = (float3)( 0.2f, -0.8f, -0.4f );
 
 typedef uchar byte;
 
@@ -46,12 +40,12 @@ int bin_search(__constant ulong* map, ulong key) {
 	int mid = (int) last / 2;
 
 	while ( first <= last ) {
-		ulong val = map[2 * (mid + 1)];
+		ulong val = map[2 * mid];
 		if (val < key) {
 			first = mid + 1;
 		}
 		else if (val == key) {
-			return mid;
+			return map[2 * mid + 1];
 		}
 		else {
 			last = mid - 1;
@@ -63,16 +57,15 @@ int bin_search(__constant ulong* map, ulong key) {
 	return -1;
 }
 
-Voxel getVolumeColor( __constant Voxel* world, __constant ulong* map, int3* cPos, int3* vPos, int lvl ) {	
-	ulong index = (ulong)(cPos->x + CHUNK_VOXEL_OFFSET) + 65536ul * (ulong)(cPos->y + CHUNK_VOXEL_OFFSET) + 65536ul * 65536ul * (ulong)(cPos->z + CHUNK_VOXEL_OFFSET);
-
+__inline Voxel getVolumeColor( __constant Voxel* world, __constant ulong* map, int3* cPos, int3* vPos, int lvl ) {	
+	ulong index = (ulong)(cPos->x + CHUNK_OFFSET) + 65536ul * (ulong)(cPos->y + CHUNK_OFFSET) + 65536ul * 65536ul * (ulong)(cPos->z + CHUNK_OFFSET);
 	int worldIdx = bin_search( map, index );
 
 	if ( worldIdx == -1 ) return (Voxel){ 0, 0 };
 
 	int offset = MAP_OFFSET[lvl];
-	int r = 5 - lvl;
-	return world[worldIdx * 37449 + offset + ((vPos->x - 32 * cPos->x) >> r) + (((vPos->y - 32 * cPos->y) >> r) << lvl) + (((vPos->z - 32 * cPos->z) >> r) << (2 * lvl))];
+	int r = CHUNK_LENGTH_BITS - lvl;
+	return world[worldIdx * CHUNK_VOXEL_COUNT + offset + ((vPos->x - CHUNK_LENGTH * cPos->x) >> r) + (((vPos->y - CHUNK_LENGTH * cPos->y) >> r) << lvl) + (((vPos->z - CHUNK_LENGTH * cPos->z) >> r) << (2 * lvl))];
 }
 
 float intersect( float3* pos, float3* dir, float3* dirInv, float size ) {
@@ -88,8 +81,8 @@ float intersect( float3* pos, float3* dir, float3* dirInv, float size ) {
 //TODO
 //1x. update chunk structure / more chunks
 //2x. LOD
-//3. regular world generation
-//4. cleanup/tweaking
+//3x. realistic world generation -> simplex/perlin/conventional noise pls
+//4x. cleanup/tweaking
 //5. mutiple pointers, point to same chunk
 //6. dynamic chunk fetching
 //7. shadow rays
@@ -108,7 +101,7 @@ __kernel void marchRays(__write_only image2d_t pixels, __constant byte* world, _
 	float3 up = (float3)(0.0f, 1.0f, 0.0f);
 	float3 camSpaceX = normalize(cross(up, cam.dir));
 	float3 camSpaceY = ( cam.size.y / cam.size.x ) * cross( cam.dir, camSpaceX );
-	float3 offset = ( py / cam.size.y - 0.5f ) * camSpaceY + ( px / cam.size.x - 0.5f ) * camSpaceX + 0.62f * cam.dir;
+	float3 offset = ( py / 1080.0f - 0.5f ) * camSpaceY + ( px / 1920.0f - 0.5f ) * camSpaceX + 0.62f * cam.dir;
 	int3 cPosCam = (int3)((int)floor(cam.pos.x / 32.0f), (int)floor(cam.pos.y / 32.0f), (int)floor(cam.pos.z / 32.0f));
 	//Ray startRay;
 	//startRay.pos = world;
@@ -121,6 +114,8 @@ __kernel void marchRays(__write_only image2d_t pixels, __constant byte* world, _
 	//write_imagef(pixels, (int2)(px, py), (float4)(length(camSpaceY), 0.0f, 0.0f, 1.0f));
 	//return;
 
+	
+	float3 last_norm = -cam.dir;
 	float3 color = (float3)(0.0f);
 	int steps = 0;
 	while( stack.ptr > 0 ) {
@@ -134,15 +129,17 @@ __kernel void marchRays(__write_only image2d_t pixels, __constant byte* world, _
 
 		//start marching
 		int lvl = 0;
+		float dist_traveled = 0.0f;
 		while ( steps++ < 128 ) {
 			int3 vPos = (int3)((int)floor(ray.pos.x), (int)floor(ray.pos.y), (int)floor(ray.pos.z)); //voxel pos in world coordinates
-			int3 cPos = (int3)((int)floor(ray.pos.x / 32.0f), (int)floor(ray.pos.y / 32.0f), (int)floor(ray.pos.z / 32.0f));
+			int3 cPos = (int3)((int)floor(ray.pos.x / CHUNK_LENGTH_F), (int)floor(ray.pos.y / CHUNK_LENGTH_F), (int)floor(ray.pos.z / CHUNK_LENGTH_F));
 			int cd = ( cPos.x - cPosCam.x ) * (cPos.x - cPosCam.x) + (cPos.y - cPosCam.y) * (cPos.y - cPosCam.y) + (cPos.z - cPosCam.z) * (cPos.z - cPosCam.z);
 
 			Voxel voxel = getVolumeColor( (__constant Voxel*)world, map, &cPos, &vPos, lvl );
+
 			if ( voxel.allum > 0 ) {
-				//if (lvl < 5 ) {
-				if (lvl < 5 - ( int ) ( cd / 16 ) ) {
+				if (lvl < CHUNK_LENGTH_BITS ) {
+				//if (lvl < 5 - ( int ) ( cd / 16 ) ) {
 					++lvl;
 					continue;
 				}
@@ -156,19 +153,27 @@ __kernel void marchRays(__write_only image2d_t pixels, __constant byte* world, _
 				float gf = (float)g / 7.0f;
 				float bf = (float)b / 3.0f;
 				color = ((float3)( rf, gf, bf ));
+
+				color = color * max( 0.1f, dot( light_dir, last_norm ) );
+
 				break;
 			}
 
-			float size = (float)(32 >> lvl);
+			float size = (float)(CHUNK_LENGTH >> lvl);
 			float3 rPos = ray.pos - size * floor(ray.pos / size);
 			float t = intersect(&rPos, &ray.dir, &ray.dirInv, size);
 			ray.pos += max((t + 0.00001f), 0.001f) * ray.dir;
+			dist_traveled += max((t + 0.00001f), 0.001f);
 
-			int r = 5 - lvl;
+			int r = CHUNK_LENGTH_BITS - lvl;
 			int3 vPosN = (int3)((int)floor(ray.pos.x), (int)floor(ray.pos.y), (int)floor(ray.pos.z));
 			int3 d = ((vPos >> r) & 1) - ((vPosN >> r) & 1);
 			lvl = ( lvl > 0 && ( d.x > 0 || d.y > 0 || d.z > 0 ) ) ? lvl - 1 : lvl;
+
+			last_norm = (float3)( -d.x, -d.y, -d.z ) / ( d.x * d.x + d.y * d.y + d.z * d.z );
 		}
+
+		//color = mix(color, (float3)(0.5, 0.8, 1.0), dist_traveled / 512.0f );
 	}
 
 	write_imagef(pixels, (int2)(px, py), (float4)(color, 1.0f));

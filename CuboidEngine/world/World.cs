@@ -1,28 +1,36 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using OpenTK.Mathematics;
 
 namespace CuboidEngine {
 	internal sealed class World {
+		public const int WorldSize         = 65536;
+		public const int WorldCenterOffset = ( int ) WorldSize / 2;
+
 		private readonly List<Chunk>     _chunks = new List<Chunk>();
 		private readonly IWorldGenerator _worldGenerator;
 
-		public           Camera                   Camera { get; } = new Camera();
-		private readonly SortedList<ulong, ulong> _map = new SortedList<ulong, ulong>();
+		public           Camera                          Camera { get; } = new Camera();
+		private readonly SortedList<ulong, ChunkMapData> _map = new SortedList<ulong, ChunkMapData>();
 
 		public World( IWorldGenerator worldGenerator ) {
 			_worldGenerator = worldGenerator;
 
 			int idx = 0;
-			for ( int z = -6; z <= 6; ++z )
-			for ( int y = 0; y < 1; ++y )
-			for ( int x = -6; x <= 6; ++x, ++idx ) {
+			for ( int x = -8; x <= 8; ++x )
+			for ( int y = 0; y < 8; ++y )
+			for ( int z = -8; z <= 8; ++z, ++idx ) {
+				ulong position = ( ulong ) ( x + WorldCenterOffset ) + ( ulong ) WorldSize * ( ulong ) ( y + WorldCenterOffset ) + ( ulong ) WorldSize * ( ulong ) WorldSize * ( ulong ) ( z + WorldCenterOffset );
+
 				Chunk chunk = new Chunk();
 				_worldGenerator.Generate( chunk, x, y, z );
 				_chunks.Add( chunk );
-				_map.Add( ( ulong ) idx, ( ulong ) ( x + 32768 ) + 65536ul * ( ulong ) ( y + 32768 ) + 65536ul * 65536ul * ( ulong ) ( z + 32768 ) );
+				_map.Add( position, new ChunkMapData( position, ( ulong ) idx ) );
 			}
+
+			Camera.SetPosition( 0.0f, 128.0f, 0.0f );
 		}
 
 		public void Update() {
@@ -30,20 +38,27 @@ namespace CuboidEngine {
 		}
 
 		public void Prepare() {
-			//RenderManager.RayTracer( this, Camera, Shaders.ScreenShaderId );
+			bool anyDirty = false;
 			for ( int i = 0; i < _chunks.Count; ++i )
 				if ( _chunks[i].IsDirty ) {
+					anyDirty = true;
 					_chunks[i].UpdateVolumes();
-					RenderManager.PrepareChunk( _chunks[i], 37449 * i );
-					CEngine.EnqueueWriteBuffer( OpenCLObjects.MapBuffer, 2 * sizeof( ulong ) * ( i + 1 ), new ulong[] {_map[( ulong ) i], ( ulong ) i}.AsSpan() );
+					RenderManager.PrepareChunk( _chunks[i], Chunk.ChunkVoxelCount * i );
 					_chunks[i].IsDirty = false;
 				}
 
-			CEngine.EnqueueWriteBuffer( OpenCLObjects.MapBuffer, 0, new ulong[] {( ulong ) _chunks.Count, 0ul}.AsSpan() );
+			if ( anyDirty ) {
+				ulong[] data = new ulong[_map.Values.Count * 2];
+				for ( int i = 0; i < _map.Keys.Count; ++i ) {
+					data[2 * i + 0] = _map[_map.Keys[i]].position;
+					data[2 * i + 1] = _map[_map.Keys[i]].index;
+				}
 
-			float[] cam = new float[] {
-				Camera.GetPosition().X, Camera.GetPosition().Y, Camera.GetPosition().Z, Camera.GetDirection().X, Camera.GetDirection().Y, Camera.GetDirection().Z, 1920.0f, 1080.0f //TODO store screen size in camera
-			};
+				CEngine.EnqueueWriteBuffer( OpenCLObjects.MapBuffer, 16, data );
+				CEngine.EnqueueWriteBuffer( OpenCLObjects.MapBuffer, 0, new[] {( ulong ) _chunks.Count, ( ulong ) Chunk.ChunkLengthBits} );
+			}
+
+			float[] cam = new float[] {Camera.Pos.X, Camera.Pos.Y, Camera.Pos.Z, Camera.GetDirection().X, Camera.GetDirection().Y, Camera.GetDirection().Z, Camera.Size.X, Camera.Size.Y};
 
 			CEngine.EnqueueWriteBuffer<float>( OpenCLObjects.CameraBuffer, 0, cam );
 		}

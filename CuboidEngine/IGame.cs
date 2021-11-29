@@ -1,7 +1,5 @@
-﻿namespace CuboidEngine
-{
-	public interface IGame
-	{
+﻿namespace CuboidEngine {
+	public interface IGame {
 		public string GetTitle();
 
 
@@ -12,5 +10,6 @@
 		public void OnKeyStroke( Keys key, KeyState state, bool isRepeat );
 		public void OnRenderTick( double dt );
 		public void OnUpdateTick( double dt );
+		public void OnWindowResize( float width, float height );
 	}
 }

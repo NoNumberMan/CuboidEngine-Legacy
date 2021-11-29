@@ -1,9 +1,9 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Net.Http;
 using System.Runtime.InteropServices;
 using System.Text;
 using OpenTK.Compute.OpenCL;
@@ -15,32 +15,69 @@ namespace CuboidEngine {
 		private static          CLContext?             _context;
 		private static          CLCommandQueue?        _queue;
 		private static readonly AssetManager<CLKernel> _kernels = new AssetManager<CLKernel>();
-
 		private static readonly AssetManager<CLBuffer> _buffers = new AssetManager<CLBuffer>();
+
+		public static long memorySizeValue;
+		public static long maximumWorkGroupSizeValue;
+		public static long maximumWorkItemSize0;
+		public static long maximumWorkItemSize1;
+		public static long maximumWorkItemSize2;
+		public static long maximumWorkItemDimensionsValue;
 
 		public static void Init( IntPtr glContext, IntPtr glPlatform ) {
 			CLResultCode platformResult = CL.GetPlatformIds( out CLPlatform[] platforms );
 			if ( platformResult != CLResultCode.Success ) throw new Exception( "Could not find OpenCL platform!" );
 
-			SortedList<int, CLDevice> validDevices = new SortedList<int, CLDevice>();
+			SortedList<int, Tuple<CLDevice, long[]>> validDevices = new SortedList<int, Tuple<CLDevice, long[]>>();
 			for ( int i = 0; i < platforms.Length; ++i ) {
 				CLResultCode deviceResult = CL.GetDeviceIds( platforms[i], DeviceType.Gpu, out CLDevice[] devices );
 				if ( deviceResult == CLResultCode.Success )
 					for ( int j = 0; j < devices.Length; ++j ) {
-						//CL.GetDeviceInfo( devices[j], DeviceInfo.Name, out byte[] paramValue ); TODO
 						CL.GetDeviceInfo( devices[j], DeviceInfo.Vendor, out byte[] vendor );
+						CL.GetDeviceInfo( devices[j], DeviceInfo.Available, out byte[] available );
+						CL.GetDeviceInfo( devices[j], DeviceInfo.CompilerAvailable, out byte[] compilerAvailable );
+						CL.GetDeviceInfo( devices[j], DeviceInfo.Extensions, out byte[] extensions );
+						CL.GetDeviceInfo( devices[j], DeviceInfo.MaximumMemoryAllocationSize, out byte[] memorySize );
+						CL.GetDeviceInfo( devices[j], DeviceInfo.ImageMaximumBufferSize, out byte[] imageMaximumBufferSize );
+						CL.GetDeviceInfo( devices[j], DeviceInfo.ImageSupport, out byte[] imageSupport );
+						CL.GetDeviceInfo( devices[j], DeviceInfo.MaximumClockFrequency, out byte[] maximumClockFrequency );
+						CL.GetDeviceInfo( devices[j], DeviceInfo.MaximumWorkGroupSize, out byte[] maximumWorkGroupSize );
+						CL.GetDeviceInfo( devices[j], DeviceInfo.MaximumWorkItemDimensions, out byte[] maximumWorkItemDimensions );
+						CL.GetDeviceInfo( devices[j], DeviceInfo.MaximumWorkItemSizes, out byte[] maximumWorkItemSizes );
 
-						int h                                                                          = 0;
-						if ( Encoding.Default.GetString( vendor ).Contains( "NVIDIA Corporation" ) ) h += 5; //TODO
-						validDevices.TryAdd( h, devices[j] );
+						long memorySizeValue                = BitConverter.ToInt64( memorySize );
+						long maximumWorkGroupSizeValue      = BitConverter.ToInt64( maximumWorkGroupSize );
+						long maximumWorkItemSize0           = BitConverter.ToInt64( maximumWorkItemSizes, 0 );
+						long maximumWorkItemSize1           = BitConverter.ToInt64( maximumWorkItemSizes, 8 );
+						long maximumWorkItemSize2           = BitConverter.ToInt64( maximumWorkItemSizes, 16 ); //TODO
+						int  maximumClockFrequencyValue     = BitConverter.ToInt32( maximumClockFrequency );
+						int  maximumWorkItemDimensionsValue = BitConverter.ToInt32( maximumWorkItemDimensions );
+
+						int req = available[0] * compilerAvailable[0] * imageSupport[0] * ( maximumWorkItemDimensionsValue >= 2 ? 1 : 0 )
+								* ( Encoding.Default.GetString( extensions ).Contains( "cl_khr_gl_sharing" ) ? 1 : 0 ) * ( memorySizeValue >= 500000000 ? 1 : 0 );
+						if ( req == 0 ) continue;
+
+						int h = 0;
+						h += memorySizeValue >= 1000000000L ? memorySizeValue >= 2000000000L ? 10 : 5 : 0;
+						h += maximumClockFrequencyValue >= 1000 ? maximumClockFrequencyValue >= 2000 ? 10 : 5 : 0;
+						h += maximumWorkGroupSizeValue >= 512 ? maximumWorkGroupSizeValue >= 1024L ? 10 : 5 : 0;
+						validDevices.TryAdd( h,
+							new Tuple<CLDevice, long[]>( devices[j], new[] {memorySizeValue, maximumWorkGroupSizeValue, maximumWorkItemSize0, maximumWorkItemSize1, maximumWorkItemSize2, maximumWorkItemDimensionsValue} ) );
 					}
 			}
 
 			if ( validDevices.Count == 0 ) throw new Exception( "Could not find valid OpenCL device!" );
 
-			_device = validDevices[validDevices.Keys.Last()];
-			CL.GetDeviceInfo( _device!.Value, DeviceInfo.Vendor, out byte[] v2 );
+			long[] values = validDevices[validDevices.Keys.Last()].Item2;
+			_device                        = validDevices[validDevices.Keys.Last()].Item1;
+			memorySizeValue                = values[0];
+			maximumWorkGroupSizeValue      = values[1];
+			maximumWorkItemSize0           = values[2];
+			maximumWorkItemSize1           = values[3];
+			maximumWorkItemSize2           = values[4];
+			maximumWorkItemDimensionsValue = values[5];
 
+			CL.GetDeviceInfo( _device!.Value, DeviceInfo.Vendor, out byte[] v2 );
 			_context = CL.CreateContext(
 				new[] {( IntPtr ) CLGL.ContextProperties.GlContextKHR, glContext, ( IntPtr ) CLGL.ContextProperties.WglHDCKHR, glPlatform, ( IntPtr ) ContextProperties.ContextPlatform, platforms[0].Handle, IntPtr.Zero},
 				new CLDevice[] {_device!.Value}, IntPtr.Zero, IntPtr.Zero, out CLResultCode contextResult );
@@ -140,6 +177,14 @@ namespace CuboidEngine {
 		}
 
 		public static void EnqueueWriteBuffer<T>( ID id, int offset, Span<T> data ) where T : unmanaged {
+			Debug.Assert( _context != null, "OpenCL context does not exist!" );
+			CLBuffer     buffer = _buffers[id];
+			CLResultCode result = CL.EnqueueWriteBuffer( _queue!.Value, buffer, false, ( UIntPtr ) offset, data, null, out CLEvent evnt );
+			CL.ReleaseEvent( evnt );
+			HandleCLResultCode( result );
+		}
+
+		public static unsafe void EnqueueWriteBuffer<T>( ID id, int offset, T[] data ) where T : unmanaged {
 			Debug.Assert( _context != null, "OpenCL context does not exist!" );
 			CLBuffer     buffer = _buffers[id];
 			CLResultCode result = CL.EnqueueWriteBuffer( _queue!.Value, buffer, false, ( UIntPtr ) offset, data, null, out CLEvent evnt );

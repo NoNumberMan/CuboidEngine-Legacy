@@ -2,11 +2,13 @@
 
 namespace CuboidEngine {
 	[StructLayout( LayoutKind.Sequential, Pack = 1, Size = 2 )]
-	public struct Voxel {
-		public byte color; //3r, 3g, 2b 8bit color
-		public byte allum; //1 alpha or luminance, 7 either alpha or lum
+	public readonly struct Voxel {
+		public readonly byte color; //3r, 3g, 2b 8bit color
+		public readonly byte allum; //1 alpha or luminance, 7 either alpha or lum
 
 		public bool Empty => allum == 0;
+
+		internal static unsafe int ByteSize => sizeof( Voxel );
 
 		public Voxel( byte color, byte allum ) {
 			this.color = color;

@@ -14,8 +14,14 @@ namespace CuboidGame {
 
 		private ID _world;
 
+		private class MyWorldGenerator : IWorldGenerator {
+			public void Generate( Chunk chunk, int cx, int cy, int cz ) {
+				//implement here
+			}
+		}
+
 		public void OnLoad() {
-			_world = CEngine.GenerateWorld( WorldGenerators.RandomWorld );
+			_world = CEngine.GenerateWorld( WorldGenerators.RealisticWorld );
 			CEngine.SetWorldActive( _world );
 			//load world
 		}
@@ -52,9 +58,9 @@ namespace CuboidGame {
 				CEngine.AccCameraDir( _world!, 0.5f, -dir );
 			}
 
-			if ( key == Keys.Space && state == KeyState.Down ) CEngine.AccCameraDir( _world!, 0.5f, -Vector3.UnitY );
+			if ( key == Keys.Space && state == KeyState.Down ) CEngine.AccCameraDir( _world!, 0.5f, Vector3.UnitY );
 
-			if ( key == Keys.LeftShift && state == KeyState.Down ) CEngine.AccCameraDir( _world!, 0.5f, Vector3.UnitY );
+			if ( key == Keys.LeftShift && state == KeyState.Down ) CEngine.AccCameraDir( _world!, 0.5f, -Vector3.UnitY );
 		}
 
 		public void OnRenderTick( double dt ) {
@@ -65,6 +71,10 @@ namespace CuboidGame {
 			//do nothing
 			//CEngine.DeleteWorld( world );
 			//world = CEngine.GenerateWorld( WorldGenerators.FlatWorld );
+		}
+
+		public void OnWindowResize( float width, float height ) {
+			CEngine.SetCameraSize( _world, width, height );
 		}
 	}
 }

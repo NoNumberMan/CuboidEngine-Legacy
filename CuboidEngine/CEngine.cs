@@ -42,7 +42,7 @@ namespace CuboidEngine {
 			string vendor = GL.GetString( StringName.Vendor );
 			Console.WriteLine( vendor );
 
-			_window.VSync       =  VSyncMode.Off;
+			_window.VSync       =  VSyncMode.On;
 			_window.Load        += OnWindowLoad;
 			_window.MouseMove   += OnWindowMouseMove;
 			_window.MouseUp     += OnWindowMouseButton;
@@ -126,6 +126,10 @@ namespace CuboidEngine {
 			ComputingManager.EnqueueWriteBuffer( id, offset, data );
 		}
 
+		public static void EnqueueWriteBuffer<T>( ID id, int offset, T[] data ) where T : unmanaged {
+			ComputingManager.EnqueueWriteBuffer( id, offset, data );
+		}
+
 		public static void WaitForFinish() {
 			ComputingManager.WaitForFinish();
 		}
@@ -162,6 +166,10 @@ namespace CuboidEngine {
 
 		public static void GetCameraDirection( ID id, out System.Numerics.Vector3 dir ) {
 			WorldManager.GetCameraDirection( id, out dir );
+		}
+
+		public static void SetCameraSize( ID id, float width, float height ) {
+			WorldManager.SetCameraSize( id, width, height );
 		}
 
 		public static void SetCameraPosition( ID id, float x, float y, float z ) {
@@ -251,10 +259,12 @@ namespace CuboidEngine {
 			SetKernelArg( OpenCLObjects.RayMarcherKernel, 2, OpenCLObjects.MapBuffer );
 			SetKernelArg( OpenCLObjects.RayMarcherKernel, 3, OpenCLObjects.CameraBuffer );
 
-			RunKernel( OpenCLObjects.RayMarcherKernel, 2, new[] {1920, 1080}, new[] {8, 8} );
-			WaitForFinish();
 			ComputingManager.EnqueueAquireGLObjects( OpenCLObjects.PixelBuffer );
+			RunKernel( OpenCLObjects.RayMarcherKernel, 2, new[] {1920, 1080}, new[] {8, 8} );
+			ComputingManager.EnqueueReleaseGLObjects( OpenCLObjects.PixelBuffer );
 			WaitForFinish();
+
+			//WaitForFinish();
 			RenderManager.RenderRayMarcherResult();
 			WorldManager.PrepareActiveWorlds();
 
@@ -270,6 +280,7 @@ namespace CuboidEngine {
 
 		private static void OnWindowResize( ResizeEventArgs args ) {
 			GL.Viewport( 0, 0, args.Width, args.Height );
+			_game!.OnWindowResize( args.Width, args.Height );
 		}
 
 		private static void OnWindowClose() {

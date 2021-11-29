@@ -49,6 +49,10 @@ namespace CuboidEngine {
 			dir                           = new System.Numerics.Vector3( x, y, z );
 		}
 
+		public static void SetCameraSize( ID id, float width, float height ) {
+			_worlds[id].Camera.SetSize( width, height );
+		}
+
 		public static void SetCameraPosition( ID id, float x, float y, float z ) {
 			_worlds[id].Camera.SetPosition( x, y, z );
 		}

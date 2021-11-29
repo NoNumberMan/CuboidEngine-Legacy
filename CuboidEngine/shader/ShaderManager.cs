@@ -7,12 +7,10 @@ using System.Threading;
 using OpenTK.Graphics.OpenGL4;
 using OpenTK.Mathematics;
 
-namespace CuboidEngine
-{
-	internal static class ShaderManager
-	{
-		private static readonly ShaderType[] _loadShaderTypes = new[] { ShaderType.VertexShader, ShaderType.FragmentShader, ShaderType.GeometryShader };
-		private static readonly AssetManager<int> _assetManager = new AssetManager<int>();
+namespace CuboidEngine {
+	internal static class ShaderManager {
+		private static readonly ShaderType[]      _loadShaderTypes = new[] {ShaderType.VertexShader, ShaderType.FragmentShader, ShaderType.GeometryShader};
+		private static readonly AssetManager<int> _assetManager    = new AssetManager<int>();
 
 		public static ID LoadShaderProgramFromFile( string[] shaderFiles ) {
 			Debug.Assert( shaderFiles.Length == 2 || shaderFiles.Length == 3, $"Need at least 2 shaders and at most 3" );
@@ -22,7 +20,7 @@ namespace CuboidEngine
 				Debug.Assert( File.Exists( shaderFiles[i] ), $"Shader file '{shaderFiles[i]}' does not exist!" );
 				shaderSources[i] = File.ReadAllText( shaderFiles[i] );
 			}
-			
+
 			return LoadShaderProgramFromSource( shaderSources );
 		}
 
@@ -57,7 +55,6 @@ namespace CuboidEngine
 			GL.Uniform3( uniform, vector );
 		}
 
-		
 
 		private static int LoadShader( string shaderSource, ShaderType type ) {
 			int shaderId = GL.CreateShader( type );
@@ -89,13 +86,13 @@ namespace CuboidEngine
 		}
 
 
-		[System.Diagnostics.Conditional( "DEBUG" )]
+		[Conditional( "DEBUG" )]
 		private static void ValidateShader( int shaderId ) {
 			string infoLog = GL.GetShaderInfoLog( shaderId );
 			Debug.Assert( string.IsNullOrEmpty( infoLog ), infoLog );
 		}
 
-		[System.Diagnostics.Conditional( "DEBUG" )]
+		[Conditional( "DEBUG" )]
 		private static void ValidateShaderProgram( int shaderProgramId ) {
 			string infoLog = GL.GetProgramInfoLog( shaderProgramId );
 			Debug.Assert( string.IsNullOrEmpty( infoLog ), infoLog );

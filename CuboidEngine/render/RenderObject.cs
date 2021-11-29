@@ -1,7 +1,9 @@
-﻿using OpenTK.Mathematics;
+﻿using System;
+using OpenTK.Mathematics;
 
 namespace CuboidEngine {
-	public struct RenderObject {
+	[Obsolete]
+	public struct RenderObject { //DEPRECATED
 		public int vao;
 
 		public int size;

@@ -28,8 +28,7 @@ namespace CuboidEngine {
 			CEngine.CLSetKernelArg( OpenCLObjects.RayMarcherKernel, 2, OpenCLObjects.MapBuffer );
 			CEngine.CLSetKernelArg( OpenCLObjects.RayMarcherKernel, 3, OpenCLObjects.VoxelBuffer );
 			CEngine.CLSetKernelArg( OpenCLObjects.RayMarcherKernel, 4, OpenCLObjects.DistanceBuffer );
-			CEngine.CLSetKernelArg( OpenCLObjects.RayMarcherKernel, 5, OpenCLObjects.RequestChunkBuffer );
-			CEngine.CLSetKernelArg( OpenCLObjects.RayMarcherKernel, 6, OpenCLObjects.RngBuffer );
+			CEngine.CLSetKernelArg( OpenCLObjects.RayMarcherKernel, 5, OpenCLObjects.RngBuffer );
 
 			CEngine.CLEnqueueAquireGLObjects( OpenCLObjects.PixelBuffer );
 			CEngine.CLRunKernel( OpenCLObjects.RayMarcherKernel, 1, new[] {1920 * 1080}, new[] {32} );
@@ -37,6 +36,17 @@ namespace CuboidEngine {
 			CEngine.CLWaitForFinish();
 
 			RenderRayMarcherResult();
+		}
+
+		public static void RequestChunks() {
+			CEngine.CLSetKernelArg( OpenCLObjects.RequestChunkKernel, 0, OpenCLObjects.CameraBuffer );
+			CEngine.CLSetKernelArg( OpenCLObjects.RequestChunkKernel, 1, OpenCLObjects.MapBuffer );
+			CEngine.CLSetKernelArg( OpenCLObjects.RequestChunkKernel, 2, OpenCLObjects.VoxelBuffer );
+			CEngine.CLSetKernelArg( OpenCLObjects.RequestChunkKernel, 3, OpenCLObjects.RequestChunkBuffer );
+			CEngine.CLSetKernelArg( OpenCLObjects.RequestChunkKernel, 4, OpenCLObjects.RngBuffer );
+
+			CEngine.CLRunKernel( OpenCLObjects.RequestChunkKernel, 1, new[] {OpenCLObjects.RequestChunkBufferLength}, new[] {32} );
+			CEngine.CLWaitForFinish();
 		}
 
 		public static void RenderRayMarcherResult() {

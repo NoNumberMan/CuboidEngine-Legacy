@@ -9,7 +9,8 @@ using OpenTK.Compute.OpenCL;
 
 namespace CuboidEngine {
 	public static class OpenCLObjects {
-		public const int MapSizeMultiplier = 4;
+		public const int MapSizeMultiplier        = 4;
+		public const int RequestChunkBufferLength = 256;
 
 		public static long Lod0ChunkNumber;
 		public static long Lod1ChunkNumber;
@@ -19,6 +20,7 @@ namespace CuboidEngine {
 		public static long Lod1ChunkSize;
 
 		public static ID RayMarcherKernel   { get; private set; } = new ID( -1 );
+		public static ID RequestChunkKernel { get; private set; } = new ID( -1 );
 		public static ID PixelBuffer        { get; private set; } = new ID( -1 );
 		public static ID CameraBuffer       { get; private set; } = new ID( -1 );
 		public static ID MapBuffer          { get; private set; } = new ID( -1 );
@@ -39,10 +41,11 @@ namespace CuboidEngine {
 			TotalMapChunkNumber = TotalChunkNumber * MapSizeMultiplier;
 			long totalChunkSize = Lod0ChunkSize + Lod1ChunkSize;
 
-			RayMarcherKernel   = CEngine.CLLoadKernelFromSources( "render", new[] {LoadRayMarchingKernel( "../../../../CuboidEngine/assets/kernels/raymarcher_v3.cl" )} );
+			RayMarcherKernel   = CEngine.CLLoadKernelFromSources( "render", new[] {LoadKernel( "../../../../CuboidEngine/assets/kernels/raymarcher_v3.cl" )} );
+			RequestChunkKernel = CEngine.CLLoadKernelFromSources( "request_chunks", new[] {LoadKernel( "../../../../CuboidEngine/assets/kernels/request_v1.cl" )} );
 			VoxelBuffer        = CEngine.CLCreateBuffer( ( int ) totalChunkSize, MemoryFlags.ReadOnly );
-			DistanceBuffer     = CEngine.CLCreateBuffer( ( int ) TotalMapChunkNumber * sizeof( uint ), MemoryFlags.ReadWrite );
-			RequestChunkBuffer = CEngine.CLCreateBuffer( 1920 * 1080 * sizeof( ulong ), MemoryFlags.ReadWrite );
+			DistanceBuffer     = CEngine.CLCreateBuffer( ( int ) TotalMapChunkNumber, MemoryFlags.ReadWrite );
+			RequestChunkBuffer = CEngine.CLCreateBuffer( RequestChunkBufferLength * sizeof( ulong ), MemoryFlags.ReadWrite );
 
 			MapBuffer    = CEngine.CLCreateBuffer( ( int ) ( TotalMapChunkNumber * ChunkMapData.ByteSize ), MemoryFlags.ReadOnly );
 			CameraBuffer = CEngine.CLCreateBuffer( 8 * sizeof( float ), MemoryFlags.ReadOnly );
@@ -51,8 +54,7 @@ namespace CuboidEngine {
 			PixelBuffer  = ComputingManager.CreateTextureBuffer( TextureID );
 
 			CEngine.CLEnqueueFillBuffer( VoxelBuffer, 0, ( int ) totalChunkSize, ( byte ) 0 );
-			CEngine.CLEnqueueFillBuffer( DistanceBuffer, 0, ( int ) TotalMapChunkNumber * sizeof( uint ), ( byte ) 255 );
-			CEngine.CLEnqueueFillBuffer( RequestChunkBuffer, 0, 1920 * 1080 * sizeof( ulong ), ( byte ) 255 );
+			CEngine.CLEnqueueFillBuffer( DistanceBuffer, 0, ( int ) TotalMapChunkNumber, ( byte ) 255 );
 			CEngine.CLEnqueueWriteBuffer( RngBuffer, 0, GenerateRng() );
 		}
 
@@ -80,7 +82,7 @@ namespace CuboidEngine {
 			return results;
 		}
 
-		private static string LoadRayMarchingKernel( string file ) {
+		private static string LoadKernel( string file ) {
 			Debug.Assert( File.Exists( file ), $"File {file} does not exist!" );
 			string        source  = File.ReadAllText( file );
 			StringBuilder builder = new StringBuilder();

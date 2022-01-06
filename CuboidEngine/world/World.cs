@@ -31,23 +31,34 @@ namespace CuboidEngine {
 			Camera.Update();
 		}
 
+		//TODO
+		//1. fix unloading chunks
+		//2. profile kernel
 		public void Prepare() {
+			int distanceBufferLength = _map.Count;
+
 			ulong[] requestBuffer  = new ulong[OpenCLObjects.RequestChunkBufferLength];
-			uint[]  distanceBuffer = new uint[_map.Count];
+			byte[]  distanceBuffer = new byte[distanceBufferLength];
 			CEngine.CLWaitForFinish();
+
+			float[] cam = new float[] {Camera.Pos.X, Camera.Pos.Y, Camera.Pos.Z, Camera.GetDirection().X, Camera.GetDirection().Y, Camera.GetDirection().Z, Camera.Size.X, Camera.Size.Y};
+			CEngine.CLEnqueueWriteBuffer<float>( OpenCLObjects.CameraBuffer, 0, cam );
+			RenderManager.RequestChunks();
+
 			CEngine.CLEnqueueReadBuffer( OpenCLObjects.RequestChunkBuffer, requestBuffer );
 			CEngine.CLEnqueueReadBuffer( OpenCLObjects.DistanceBuffer, distanceBuffer );
 			CEngine.CLWaitForFinish();
-			CEngine.CLEnqueueFillBuffer( OpenCLObjects.RequestChunkBuffer, 0, OpenCLObjects.RequestChunkBufferLength * sizeof( ulong ), ( byte ) 255 );
-			CEngine.CLEnqueueFillBuffer( OpenCLObjects.DistanceBuffer, 0, ( int ) OpenCLObjects.TotalMapChunkNumber * sizeof( uint ), ( byte ) 255 );
-			//CEngine.CLEnqueueWriteBuffer( OpenCLObjects.RngBuffer, 0, OpenCLObjects.GenerateRng() );
+			CEngine.CLEnqueueFillBuffer( OpenCLObjects.DistanceBuffer, 0, ( int ) OpenCLObjects.TotalMapChunkNumber, ( byte ) 0 );
 
 
 			bool anyDirty = false;
 
-			if ( requestBuffer[1] < ulong.MaxValue ) { //TODO expand utilization of requestbuffer to all 255 slots
-				ulong position = ( ulong ) requestBuffer[1];
-				if ( !_map.ContainsKey( position ) ) {
+			CleanMap( distanceBuffer ); //TODO reorder map after this
+
+			for ( int r = 0; r < OpenCLObjects.RequestChunkBufferLength; ++r ) { //TODO expand utilization of requestbuffer to all 255 slots
+				ulong position = ( ulong ) requestBuffer[r];
+
+				if ( ~position != 0 && !_map.ContainsKey( position ) ) {
 					int cx = ( int ) ( position % WorldSize ) - WorldCenterOffset;
 					int cy = ( int ) ( position / WorldSize % WorldSize ) - WorldCenterOffset;
 					int cz = ( int ) ( position / ( ( ulong ) WorldSize * ( ulong ) WorldSize ) ) - WorldCenterOffset;
@@ -63,27 +74,6 @@ namespace CuboidEngine {
 						_map.Add( position, 0 );
 					}
 					else {
-						if ( chunkIndex >= OpenCLObjects.Lod0ChunkNumber ) { //cannot overflow map
-							int empty = 0;
-							for ( int i = 0; i < _map.Keys.Count; ++i )
-								if ( distanceBuffer[i] == uint.MaxValue ) {
-									if ( _map.Values[i] > 0 ) {
-										chunkIndex = _map.Values[i];
-										_map.RemoveAt( i );
-										_map.Add( position, chunkIndex );
-										_chunks[chunkIndex] = chunk;
-
-										RenderManager.UploadChunk( chunk, chunkIndex );
-										goto done;
-									}
-									else {
-										++empty;
-									}
-								}
-
-							if ( empty > 16 ) CleanMap( distanceBuffer );
-						}
-
 						_map.Add( position, chunkIndex );
 						_chunks.Add( chunk );
 						RenderManager.UploadChunk( chunk, chunkIndex );
@@ -104,15 +94,12 @@ namespace CuboidEngine {
 				CEngine.CLEnqueueWriteBuffer( OpenCLObjects.MapBuffer, 16, data );
 				CEngine.CLEnqueueWriteBuffer( OpenCLObjects.MapBuffer, 0, new[] {( ulong ) _map.Keys.Count, ( ulong ) Chunk.ChunkLengthBits} );
 			}
-
-			float[] cam = new float[] {Camera.Pos.X, Camera.Pos.Y, Camera.Pos.Z, Camera.GetDirection().X, Camera.GetDirection().Y, Camera.GetDirection().Z, Camera.Size.X, Camera.Size.Y};
-			CEngine.CLEnqueueWriteBuffer<float>( OpenCLObjects.CameraBuffer, 0, cam );
 		}
 
-		private int CleanMap( uint[] distanceBuffer ) {
+		private int CleanMap( byte[] distanceBuffer ) {
 			int removed = 0;
 			for ( int i = distanceBuffer.Length - 1; i >= 0; --i )
-				if ( distanceBuffer[i] == uint.MaxValue ) {
+				if ( distanceBuffer[i] == 0 ) {
 					_map.RemoveAt( i );
 					++removed;
 				}

@@ -137,15 +137,14 @@ __inline int get_face_idx( float3 pos, float size ) {
 	return face_idx;
 }
 
-VoxelFetchResult getVoxel( __constant Voxel* voxelBuffer, __constant ulong* mapBuffer, __global byte* distanceBuffer, int3* cPos, int3* vPos, int lvl, int* lod, int cd ) {
-	ulong index = (ulong)(cPos->x + WORLD_CHUNK_OFFSET) + WORLD_CHUNK_SIZE * (ulong)(cPos->y + WORLD_CHUNK_OFFSET) + WORLD_CHUNK_SIZE * WORLD_CHUNK_SIZE * (ulong)(cPos->z + WORLD_CHUNK_OFFSET);
-	int mapIdx = bin_search( mapBuffer, index );
+VoxelFetchResult getVoxel( const int index, __constant Voxel* voxelBuffer, __constant ulong* mapBuffer, __global ulong* requestBuffer, int3* cPos, int3* vPos, int lvl, int* lod, int cd ) {
+	ulong chunk_index = (ulong)(cPos->x + WORLD_CHUNK_OFFSET) + WORLD_CHUNK_SIZE * (ulong)(cPos->y + WORLD_CHUNK_OFFSET) + WORLD_CHUNK_SIZE * WORLD_CHUNK_SIZE * (ulong)(cPos->z + WORLD_CHUNK_OFFSET);
+	int mapIdx = bin_search( mapBuffer, chunk_index );
 
 	if ( mapIdx == -1 ) {
-		return (VoxelFetchResult){(Voxel){0,0},0};
+		requestBuffer[index] = chunk_index;
+		return (VoxelFetchResult){(Voxel){0, 0}, 0};
 	}
-
-	distanceBuffer[mapIdx] = 1;
 	
 	int voxelBufferIdx = mapBuffer[3 + 2 * mapIdx];
 	*lod = voxelBufferIdx < LOD0_CHUNK_NUMBER ? 0 : 1;	
@@ -155,7 +154,7 @@ VoxelFetchResult getVoxel( __constant Voxel* voxelBuffer, __constant ulong* mapB
 	return (VoxelFetchResult){voxelBuffer[offset + ((vPos->x - (CHUNK_LENGTH * cPos->x)) >> r) + (((vPos->y - (CHUNK_LENGTH * cPos->y)) >> r) << lvl) + (((vPos->z - (CHUNK_LENGTH * cPos->z)) >> r) << (2 * lvl))], 1};
 }
 
-void extendRay( IntersectResult* intersect_result, const float* t_total, Ray ray, __constant ulong* mapBuffer, __constant byte* voxelBuffer, __global byte* distanceBuffer ) {
+void extendRay( IntersectResult* intersect_result, const int index, const float* t_total, Ray ray, __constant ulong* mapBuffer, __constant byte* voxelBuffer, __global ulong* requestBuffer ) {
 	float t = 0.0f;
 	int lvl = 0;
 	int steps = 0;
@@ -168,12 +167,10 @@ void extendRay( IntersectResult* intersect_result, const float* t_total, Ray ray
 		float3 rPos = ray.pos - size * floor(ray.pos / size);
 
 		int lod = 0;
-		VoxelFetchResult fetchResult = getVoxel( (__constant Voxel*)voxelBuffer, mapBuffer, distanceBuffer, &cPos, &vPos, lvl, &lod, cd );
+		VoxelFetchResult fetchResult = getVoxel( index, (__constant Voxel*)voxelBuffer, mapBuffer, requestBuffer, &cPos, &vPos, lvl, &lod, cd );
 
-		if ( !fetchResult.success ) {
-			intersect_result->hit = get_face_idx( rPos, size ) == 1 ? HIT_RESULT_SKYBOX : HIT_RESULT_MISS;
-		}
-
+		if ( !fetchResult.success ) break;
+		
 		Voxel voxel = fetchResult.voxel;
 
 		if ( voxel.allum > 0 ) {
@@ -207,26 +204,18 @@ void extendRay( IntersectResult* intersect_result, const float* t_total, Ray ray
 	intersect_result->hit = HIT_RESULT_MISS;
 }
 
-float3 tracePath( const int pixel_idx, const Ray* camray, __constant ulong* mapBuffer, __constant byte* voxelBuffer, __global byte* distanceBuffer, const uint rng ) {
+void tracePath( const int index, const Ray* camray, __constant ulong* mapBuffer, __constant byte* voxelBuffer, __global ulong* requestBuffer, const uint rng ) {
 	Ray ray = *camray;
 
-	float3 color = (float3)(0.0f);
-	float3 mask = (float3)(1.0f);
 	IntersectResult intersect;
 	float t_total = 0.0f;
 
 	for ( int i = 0; i < 2; ++i ) { //bounce once
-		extendRay( &intersect, &t_total, ray, mapBuffer, voxelBuffer, distanceBuffer );
+		extendRay( &intersect, index, &t_total, ray, mapBuffer, voxelBuffer, requestBuffer );
 
-		if ( intersect.hit == HIT_RESULT_MISS ) {
-			return color;
+		if ( intersect.hit != HIT_RESULT_INTERSECT || ~requestBuffer[index] != 0 ) {
+			return;
 		}
-		
-		if ( intersect.hit == HIT_RESULT_SKYBOX ) {
-			return color + mask * (float3)(1.0f); //TODO change skybox color
-		}
-
-		//otherwise intersect.hit == intersect
 
 		ray.pos += ray.dir * intersect.t + 0.005f * normals[intersect.face_id];
 		t_total += intersect.t;
@@ -241,46 +230,36 @@ float3 tracePath( const int pixel_idx, const Ray* camray, __constant ulong* mapB
 		}
 
 		ray.dirInv = 1.0f / ray.dir;
-		
-		int r = ( ( intersect.voxel.color >> 5 ) & 7 );
-		int g = ( ( intersect.voxel.color >> 2 ) & 7 );
-		int b = ( ( intersect.voxel.color >> 0 ) & 3 );
-		int l = ( ( intersect.voxel.allum & 1 ) == 1 ) ? ( intersect.voxel.allum >> 1 ) : 0;
-		
-		color += mask * ( ((float) l * 0.0078740157f ) * (float3)((float)r, (float)g, (float)b * 2.33333333f) * 0.1428571429f );
-		mask *= (float3)((float)r, (float)g, (float)b * 2.33333333f) * 0.1428571429f;
 	}
-
-	return color;
 }
 
 
-__kernel void render( __read_write image2d_t pixelBuffer, __constant float* camBuffer, __constant ulong* mapBuffer, __constant byte* voxelBuffer, __global byte* distanceBuffer, __global uint* rngBuffer ) {
-	const int pixel_idx = get_global_id(0);
-	const int px = pixel_idx % 1920;
-	const int py = pixel_idx / 1920;
-
-	Camera cam;
-	cam.pos = (float3)(camBuffer[0], camBuffer[1], camBuffer[2]);
-	cam.dir = (float3)(camBuffer[3], camBuffer[4], camBuffer[5]);
+__kernel void request_chunks( __constant float* camBuffer, __constant ulong* mapBuffer, __constant byte* voxelBuffer, __global ulong* requestBuffer, __global uint* rngBuffer ) {
+	const int index = get_global_id(0);
 	
-	const float3 up = (float3)(0.0f, 1.0f, 0.0f);
-	const float3 camSpaceX = normalize(cross(up, cam.dir));
-	const float3 camSpaceY = ( 1080.0f / 1920.0f ) * cross( cam.dir, camSpaceX );
+	const uint rand = next( rngBuffer, index );
 	
-	Ray camRay;
-	float3 color = (float3)(0.0f);
-	for( int i = 0; i < 1; ++i ) {
-		const uint rand = next( rngBuffer, pixel_idx );
-		const float dpx = ( ( ( rand >> 0 ) & 65535 ) * 0.0000152588f ) - 0.5f;
-		const float dpy = ( ( ( rand >> 16 ) & 65535 ) * 0.0000152588f ) - 0.5f;
-
+	const float r = ((rand >> 0) & 65535) * 0.016784668f;
+	const float theta = ((rand >> 16) & 65535) * 0.0000958738f;
+	
+	const int px = 540 + (int) ( r * cos(theta) );
+	const int py = 960 + (int) ( r * sin(theta) );
+	requestBuffer[index] = ~0ul;
+	
+	if (!(px < 0 || px >= 1920 || py < 0 || py >= 1080)) {
+		Camera cam;
+		cam.pos = (float3)(camBuffer[0], camBuffer[1], camBuffer[2]);
+		cam.dir = (float3)(camBuffer[3], camBuffer[4], camBuffer[5]);
+		
+		const float3 up = (float3)(0.0f, 1.0f, 0.0f);
+		const float3 camSpaceX = normalize(cross(up, cam.dir));
+		const float3 camSpaceY = ( 1080.0f / 1920.0f ) * cross( cam.dir, camSpaceX );
+		
+		Ray camRay;
 		camRay.pos = cam.pos;
-		camRay.dir = ( (py + dpy) / 1080.0f - 0.5f ) * camSpaceY + ( (px + dpx) / 1920.0f - 0.5f ) * camSpaceX + 0.62f * cam.dir;
+		camRay.dir = ( py / 1080.0f - 0.5f ) * camSpaceY + ( px / 1920.0f - 0.5f ) * camSpaceX + 0.62f * cam.dir;
 		camRay.dirInv = 1.0f / camRay.dir;
 
-		color += 1.0f * tracePath( pixel_idx, &camRay, mapBuffer, voxelBuffer, distanceBuffer, rand );
+		tracePath( index, &camRay, mapBuffer, voxelBuffer, requestBuffer, rand );
 	}
-
-	write_imagef(pixelBuffer, (int2)(px, py), (float4)(color, 1.0f));
 }

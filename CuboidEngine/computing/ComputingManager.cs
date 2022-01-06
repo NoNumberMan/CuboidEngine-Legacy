@@ -17,12 +17,12 @@ namespace CuboidEngine {
 		private static readonly AssetManager<CLKernel> _kernels = new AssetManager<CLKernel>();
 		private static readonly AssetManager<CLBuffer> _buffers = new AssetManager<CLBuffer>();
 
-		public static long memorySizeValue;
-		public static long maximumWorkGroupSizeValue;
-		public static long maximumWorkItemSize0;
-		public static long maximumWorkItemSize1;
-		public static long maximumWorkItemSize2;
-		public static long maximumWorkItemDimensionsValue;
+		public static long MemorySizeValue;
+		public static long MaximumWorkGroupSizeValue;
+		public static long MaximumWorkItemSize0;
+		public static long MaximumWorkItemSize1;
+		public static long MaximumWorkItemSize2;
+		public static long MaximumWorkItemDimensionsValue;
 
 		public static void Init( IntPtr glContext, IntPtr glPlatform ) {
 			CLResultCode platformResult = CL.GetPlatformIds( out CLPlatform[] platforms );
@@ -70,12 +70,12 @@ namespace CuboidEngine {
 
 			long[] values = validDevices[validDevices.Keys.Last()].Item2;
 			_device                        = validDevices[validDevices.Keys.Last()].Item1;
-			memorySizeValue                = values[0];
-			maximumWorkGroupSizeValue      = values[1];
-			maximumWorkItemSize0           = values[2];
-			maximumWorkItemSize1           = values[3];
-			maximumWorkItemSize2           = values[4];
-			maximumWorkItemDimensionsValue = values[5];
+			MemorySizeValue                = values[0];
+			MaximumWorkGroupSizeValue      = values[1];
+			MaximumWorkItemSize0           = values[2];
+			MaximumWorkItemSize1           = values[3];
+			MaximumWorkItemSize2           = values[4];
+			MaximumWorkItemDimensionsValue = values[5];
 
 			CL.GetDeviceInfo( _device!.Value, DeviceInfo.Vendor, out byte[] v2 );
 			_context = CL.CreateContext(
@@ -195,7 +195,7 @@ namespace CuboidEngine {
 		public static void EnqueueReadBuffer<T>( ID id, T[] data ) where T : unmanaged {
 			Debug.Assert( _context != null, "OpenCL context does not exist!" );
 			CLBuffer     buffer = _buffers[id];
-			CLResultCode result = CL.EnqueueReadBuffer( _queue!.Value, buffer, false, UIntPtr.Zero, data, null, out CLEvent evnt );
+			CLResultCode result = EnqueueReadBuffer( _queue!.Value, buffer, false, UIntPtr.Zero, data, null, out CLEvent evnt );
 			CL.ReleaseEvent( evnt );
 			HandleCLResultCode( result );
 		}
@@ -216,16 +216,44 @@ namespace CuboidEngine {
 			HandleCLResultCode( result );
 		}
 
+		public static void EnqueueFillBuffer<T>( ID id, int offset, int size, T fill ) where T : unmanaged {
+			Debug.Assert( _context != null, "OpenCL context does not exist!" );
+			CLBuffer     buffer = _buffers[id];
+			CLResultCode result = CL.EnqueueFillBuffer( _queue!.Value, buffer, new T[] {fill}, ( UIntPtr ) offset, ( UIntPtr ) size, null, out CLEvent evnt );
+			CL.ReleaseEvent( evnt );
+			HandleCLResultCode( result );
+		}
+
 		public static ID CreateTextureBuffer( ID textureId ) {
 			Debug.Assert( _context != null, "OpenCL context does not exist!" );
-			CLBuffer textureBuffer = CLGL.CreateFromGLTexture( _context!.Value, MemoryFlags.WriteOnly, ( int ) TextureTarget.Texture2D, 0,
+			CLBuffer textureBuffer = CLGL.CreateFromGLTexture( _context!.Value, MemoryFlags.ReadWrite, ( int ) TextureTarget.Texture2D, 0,
 				TextureManager.GetTextureId( textureId ), out CLResultCode result );
 			HandleCLResultCode( result );
 			return _buffers.AddAsset( textureBuffer );
 		}
 
+		private static unsafe CLResultCode EnqueueReadBuffer<T>( //fix for opencl code
+			CLCommandQueue commandQueue,
+			CLBuffer buffer,
+			bool blockingRead,
+			UIntPtr offset,
+			T[] array,
+			CLEvent[] eventWaitList,
+			out CLEvent eventHandle )
+			where T : unmanaged {
+			fixed ( T* objPtr = array ) {
+				return CL.EnqueueReadBuffer( commandQueue, buffer, blockingRead, offset, ( UIntPtr ) ( ulong ) ( array.Length * sizeof( T ) ), ( IntPtr ) ( void* ) objPtr, eventWaitList != null ? ( uint ) eventWaitList.Length : 0U,
+					eventWaitList,
+					out eventHandle );
+			}
+		}
+
 		public static void WaitForFinish() {
 			CL.Finish( _queue!.Value );
+		}
+
+		public static void Flush() {
+			CL.Flush( _queue!.Value );
 		}
 
 

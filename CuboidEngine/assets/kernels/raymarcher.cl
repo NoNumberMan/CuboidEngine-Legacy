@@ -88,7 +88,7 @@ float intersect( float3* pos, float3* dir, float3* dirInv, float size ) {
 //7. shadow rays
 //8. adding lights
 //9. path tracer (tm)
-__kernel void marchRays(__write_only image2d_t pixels, __constant byte* world, __constant ulong* map, __constant float* camArray ) {
+__kernel void marchRays(__write_only image2d_t pixels, __constant ulong* map, __constant float* camArray, __constant byte* lod0Voxels, __constant byte* lod0Distances, __global long* request ) {
 	int px = get_global_id(0);
 	int py = get_global_id(1);
 

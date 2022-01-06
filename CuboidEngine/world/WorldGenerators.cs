@@ -144,6 +144,11 @@ namespace CuboidEngine {
 							chunk[x, y, z] = new Voxel( color, true, 127 );
 						}
 					}
+
+					chunk[0, 80, 0] = new Voxel( 255, false, 127 );
+					chunk[1, 80, 0] = new Voxel( 255, false, 127 );
+					chunk[1, 80, 1] = new Voxel( 255, false, 127 );
+					chunk[0, 80, 1] = new Voxel( 255, false, 127 );
 				} );
 			}
 		}

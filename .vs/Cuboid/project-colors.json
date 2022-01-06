@@ -1,0 +1,21 @@
+{
+  "Version": 1,
+  "ProjectMap": {
+    "8ae82a4f-b8f6-4f23-ac6a-13fad33bfef1": {
+      "ProjectGuid": "8ae82a4f-b8f6-4f23-ac6a-13fad33bfef1",
+      "DisplayName": "CuboidEngine",
+      "ColorIndex": 0
+    },
+    "d15cfe1b-e672-4c84-bcd9-deeb9721af72": {
+      "ProjectGuid": "d15cfe1b-e672-4c84-bcd9-deeb9721af72",
+      "DisplayName": "CuboidGame",
+      "ColorIndex": 1
+    },
+    "a2fe74e1-b743-11d0-ae1a-00a0c90fffc3": {
+      "ProjectGuid": "a2fe74e1-b743-11d0-ae1a-00a0c90fffc3",
+      "DisplayName": "Miscellaneous Files",
+      "ColorIndex": -1
+    }
+  },
+  "NextColorIndex": 2
+}

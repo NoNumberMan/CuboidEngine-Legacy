@@ -1,7 +1,4 @@
 ﻿using System;
-using System.ComponentModel;
-using System.Diagnostics;
-using System.Net;
 using OpenTK.Compute.OpenCL;
 using OpenTK.Graphics.ES11;
 using OpenTK.Mathematics;
@@ -42,7 +39,7 @@ namespace CuboidEngine {
 			string vendor = GL.GetString( StringName.Vendor );
 			Console.WriteLine( vendor );
 
-			_window.VSync       =  VSyncMode.On;
+			_window.VSync       =  VSyncMode.Off;
 			_window.Load        += OnWindowLoad;
 			_window.MouseMove   += OnWindowMouseMove;
 			_window.MouseUp     += OnWindowMouseButton;
@@ -90,56 +87,72 @@ namespace CuboidEngine {
 
 
 		//BASIC OPENCL
-		public static ID LoadKernelFromFiles( string kernelName, string[] kernelFiles ) {
+		public static ID CLLoadKernelFromFiles( string kernelName, string[] kernelFiles ) {
 			return ComputingManager.LoadKernelFromFiles( kernelName, kernelFiles );
 		}
 
-		public static ID LoadKernelFromSources( string kernelName, string[] kernelSources ) {
+		public static ID CLLoadKernelFromSources( string kernelName, string[] kernelSources ) {
 			return ComputingManager.LoadKernelFromSources( kernelName, kernelSources );
 		}
 
-		public static void UnloadKernel( ID id ) {
+		public static void CLUnloadKernel( ID id ) {
 			ComputingManager.UnloadKernel( id );
 		}
 
-		public static void SetKernelArg<T>( ID id, uint index, T arg ) where T : unmanaged {
+		public static void CLSetKernelArg<T>( ID id, uint index, T arg ) where T : unmanaged {
 			ComputingManager.SetKernelArg<T>( id, index, arg );
 		}
 
-		public static void SetKernelArg( ID id, uint index, ID bufferId ) {
+		public static void CLSetKernelArg( ID id, uint index, ID bufferId ) {
 			ComputingManager.SetKernelArg( id, index, bufferId );
 		}
 
-		public static void RunKernel( ID id, int dim, int[] globalWorkSize, int[] localWorkSize ) {
+		public static void CLRunKernel( ID id, int dim, int[] globalWorkSize, int[] localWorkSize ) {
 			ComputingManager.RunKernel( id, dim, globalWorkSize, localWorkSize );
 		}
 
-		public static ID CreateBuffer<T>( T[] data ) where T : unmanaged {
+		public static ID CLCreateBuffer<T>( T[] data ) where T : unmanaged {
 			return ComputingManager.CreateBuffer( data );
 		}
 
-		public static ID CreateBuffer<T>( Span<T> data ) where T : unmanaged {
+		public static ID CLCreateBuffer<T>( Span<T> data ) where T : unmanaged {
 			return ComputingManager.CreateBuffer( data );
 		}
 
-		public static void EnqueueWriteBuffer<T>( ID id, int offset, Span<T> data ) where T : unmanaged {
+		public static void CLEnqueueWriteBuffer<T>( ID id, int offset, Span<T> data ) where T : unmanaged {
 			ComputingManager.EnqueueWriteBuffer( id, offset, data );
 		}
 
-		public static void EnqueueWriteBuffer<T>( ID id, int offset, T[] data ) where T : unmanaged {
+		public static void CLEnqueueWriteBuffer<T>( ID id, int offset, T[] data ) where T : unmanaged {
 			ComputingManager.EnqueueWriteBuffer( id, offset, data );
 		}
 
-		public static void WaitForFinish() {
+		public static void CLEnqueueFillBuffer<T>( ID id, int offset, int size, T fill ) where T : unmanaged {
+			ComputingManager.EnqueueFillBuffer( id, offset, size, fill );
+		}
+
+		public static void CLWaitForFinish() {
 			ComputingManager.WaitForFinish();
 		}
 
-		public static ID CreateBuffer( int size, MemoryFlags flags = 0 ) {
+		public static ID CLCreateBuffer( int size, MemoryFlags flags = 0 ) {
 			return ComputingManager.CreateBuffer( size, flags );
 		}
 
-		public static void EnqueueReadBuffer<T>( ID id, T[] data ) where T : unmanaged {
+		public static void CLEnqueueReadBuffer<T>( ID id, T[] data ) where T : unmanaged {
 			ComputingManager.EnqueueReadBuffer( id, data );
+		}
+
+		public static void CLEnqueueAquireGLObjects( ID id ) {
+			ComputingManager.EnqueueAquireGLObjects( id );
+		}
+
+		public static void CLEnqueueReleaseGLObjects( ID id ) {
+			ComputingManager.EnqueueReleaseGLObjects( id );
+		}
+
+		public static void CLFlush() {
+			ComputingManager.Flush();
 		}
 
 
@@ -244,7 +257,7 @@ namespace CuboidEngine {
 		private static readonly Timer _timer = new Timer();
 
 		private static void OnWindowRenderTick( FrameEventArgs args ) {
-			if ( _timer.Count > 100 ) {
+			if ( _timer.Count > 1 ) {
 				Console.WriteLine( $"Elapsed Time = {_timer.MeanTime}ms" );
 				_timer.Restart();
 			}
@@ -254,19 +267,7 @@ namespace CuboidEngine {
 
 			GL.Clear( ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit );
 
-			SetKernelArg( OpenCLObjects.RayMarcherKernel, 0, OpenCLObjects.PixelBuffer );
-			SetKernelArg( OpenCLObjects.RayMarcherKernel, 1, OpenCLObjects.VoxelBuffer );
-			SetKernelArg( OpenCLObjects.RayMarcherKernel, 2, OpenCLObjects.MapBuffer );
-			SetKernelArg( OpenCLObjects.RayMarcherKernel, 3, OpenCLObjects.CameraBuffer );
-
-			ComputingManager.EnqueueAquireGLObjects( OpenCLObjects.PixelBuffer );
-			RunKernel( OpenCLObjects.RayMarcherKernel, 2, new[] {1920, 1080}, new[] {8, 8} );
-			ComputingManager.EnqueueReleaseGLObjects( OpenCLObjects.PixelBuffer );
-			WaitForFinish();
-
-			//WaitForFinish();
-			RenderManager.RenderRayMarcherResult();
-			WorldManager.PrepareActiveWorlds();
+			WorldManager.RenderActiveWorlds();
 
 			_game!.OnRenderTick( args.Time ); //Does the game need this?
 

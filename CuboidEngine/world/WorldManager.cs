@@ -6,7 +6,7 @@ using OpenTK.Mathematics;
 namespace CuboidEngine {
 	internal static class WorldManager {
 		private static readonly AssetManager<World> _worlds       = new AssetManager<World>();
-		private static readonly List<ID>            _activeWorlds = new List<ID>();
+		private static readonly List<ID>            _activeWorlds = new List<ID>(); //TODO sort worlds by render order
 
 		public static ID GenerateWorld( IWorldGenerator generator ) {
 			return _worlds.AddAsset( new World( generator ) );
@@ -33,9 +33,11 @@ namespace CuboidEngine {
 			for ( int i = 0; i < _activeWorlds.Count; ++i ) _worlds[_activeWorlds[i]].Update();
 		}
 
-		public static void PrepareActiveWorlds() {
-			for ( int i = 0; i < _activeWorlds.Count; ++i )
+		public static void RenderActiveWorlds() {
+			for ( int i = 0; i < _activeWorlds.Count; ++i ) {
 				_worlds[_activeWorlds[i]].Prepare();
+				RenderManager.RenderRayMarcher();
+			}
 		}
 
 

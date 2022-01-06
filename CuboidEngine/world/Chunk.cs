@@ -2,15 +2,20 @@
 
 namespace CuboidEngine {
 	public class Chunk {
-		public const int ChunkLengthBits = 5;
+		public const int ChunkLengthBits = 5; //must be >= 2
 		public const int ChunkLength     = 1 << ChunkLengthBits;
 		public const int ChunkSize       = ChunkLength * ChunkLength * ChunkLength;
 
-		public static readonly int ChunkVoxelCount;
+
+		public static readonly long ChunkVoxelCount;
+		public static readonly long Lod0VoxelCount;
+		public static readonly long Lod1VoxelCount;
 
 		static Chunk() {
 			for ( int i = 0; i < ChunkLengthBits + 1; ++i )
 				ChunkVoxelCount += ( 1 << i ) * ( 1 << i ) * ( 1 << i );
+			Lod0VoxelCount = ChunkVoxelCount;
+			Lod1VoxelCount = ChunkVoxelCount >> 3;
 		}
 
 		public bool IsDirty { get; set; }
@@ -21,7 +26,7 @@ namespace CuboidEngine {
 		internal Span<Voxel> Voxels => _voxels.AsSpan();
 
 		internal Span<Voxel> Vol( int idx ) {
-			return _superVoxels[idx];
+			return idx == ChunkLengthBits ? _voxels : _superVoxels[idx];
 		}
 
 		internal Chunk() {

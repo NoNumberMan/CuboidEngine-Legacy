@@ -1,4 +1,5 @@
 ﻿using System;
+using OpenTK.Mathematics;
 
 namespace CuboidEngine {
 	public class Chunk {
@@ -7,16 +8,13 @@ namespace CuboidEngine {
 		public const int ChunkSize       = ChunkLength * ChunkLength * ChunkLength;
 
 
-		public static readonly long ChunkVoxelCount;
-		public static readonly long Lod0VoxelCount;
-		public static readonly long Lod1VoxelCount;
+		public static readonly long VoxelCount;
 
 		static Chunk() {
 			for ( int i = 0; i < ChunkLengthBits + 1; ++i )
-				ChunkVoxelCount += ( 1 << i ) * ( 1 << i ) * ( 1 << i );
-			Lod0VoxelCount = ChunkVoxelCount;
-			Lod1VoxelCount = ChunkVoxelCount >> 3;
+				VoxelCount += ( 1 << i ) * ( 1 << i ) * ( 1 << i );
 		}
+
 
 		public bool IsDirty { get; set; }
 

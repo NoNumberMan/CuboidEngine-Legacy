@@ -13,10 +13,9 @@ namespace CuboidEngine {
 
 		public static void UploadChunk( Chunk chunk, int index ) {
 			int  pos    = 0;
-			int  lod    = index < OpenCLObjects.Lod0ChunkNumber ? 0 : 1;
-			long offset = lod == 0 ? index * Chunk.Lod0VoxelCount : OpenCLObjects.Lod0ChunkNumber * Chunk.Lod0VoxelCount + ( index - OpenCLObjects.Lod0ChunkNumber ) * Chunk.Lod1VoxelCount;
+			long offset = index * Chunk.VoxelCount;
 
-			for ( int i = 0; i <= Chunk.ChunkLengthBits - lod; ++i ) {
+			for ( int i = 0; i <= Chunk.ChunkLengthBits; ++i ) {
 				CEngine.CLEnqueueWriteBuffer( OpenCLObjects.VoxelBuffer, Voxel.ByteSize * ( ( int ) offset + pos ), chunk.Vol( i ) );
 				pos += ( 1 << i ) * ( 1 << i ) * ( 1 << i );
 			}
@@ -27,12 +26,11 @@ namespace CuboidEngine {
 			CEngine.CLSetKernelArg( OpenCLObjects.RayMarcherKernel, 1, OpenCLObjects.CameraBuffer );
 			CEngine.CLSetKernelArg( OpenCLObjects.RayMarcherKernel, 2, OpenCLObjects.MapBuffer );
 			CEngine.CLSetKernelArg( OpenCLObjects.RayMarcherKernel, 3, OpenCLObjects.VoxelBuffer );
-			CEngine.CLSetKernelArg( OpenCLObjects.RayMarcherKernel, 4, OpenCLObjects.DistanceBuffer );
-			CEngine.CLSetKernelArg( OpenCLObjects.RayMarcherKernel, 5, OpenCLObjects.RngBuffer );
-
+			CEngine.CLSetKernelArg( OpenCLObjects.RayMarcherKernel, 4, OpenCLObjects.RngBuffer );
 			CEngine.CLEnqueueAquireGLObjects( OpenCLObjects.PixelBuffer );
 			CEngine.CLRunKernel( OpenCLObjects.RayMarcherKernel, 1, new[] {1920 * 1080}, new[] {32} );
 			CEngine.CLEnqueueReleaseGLObjects( OpenCLObjects.PixelBuffer );
+
 			CEngine.CLWaitForFinish();
 
 			RenderRayMarcherResult();

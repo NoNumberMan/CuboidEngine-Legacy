@@ -1,4 +1,17 @@
-﻿
+#pragma OPENCL EXTENSION cl_khr_int64_base_atomics: enable
+#pragma OPENCL EXTENSION cl_khr_int64_extended_atomics: enable
+#define CHUNK_LENGTH 32
+#define CHUNK_LENGTH_F 32.0f
+#define CHUNK_LENGTH_BITS 5
+#define CHUNK_VOXEL_COUNT 37449
+#define CHUNK_NUMBER 7168
+#define TOTAL_MAP_CHUNK_NUMBER 28672
+#define VOXEL_SIZE 2
+#define REQUEST_CHUNK_BUFFER_LENGTH 256
+#define WORLD_SIZE 64ul
+#define WORLD_OFFSET 32ul
+__constant int MAP_OFFSET[6] = {0,1,9,73,585,4681};
+
 
 #define HIT_RESULT_MISS 0
 #define HIT_RESULT_SKYBOX 1
@@ -9,8 +22,8 @@ typedef uchar byte;
 __constant float3 normal_x = (float3)( 1.0f, 0.0f, 0.0f );
 __constant float3 normal_y = (float3)( 0.0f, 1.0f, 0.0f );
 __constant float3 normal_z = (float3)( 0.0f, 0.0f, 1.0f );
-__constant float4 normals[6] = { (float4)( -1.0f, 0.0f, 0.0f, 0.0f ), (float4)( 0.0f, -1.0f, 0.0f, 0.0f ), 
-	(float4)( 0.0f, 0.0f, -1.0f, 0.0f ), (float4)( 1.0f, 0.0f, 0.0f, 0.0f ), (float4)( 0.0f, 1.0f, 0.0f, 0.0f ), (float4)( 0.0f, 0.0f, 1.0f, 0.0f ) };
+__constant float3 normals[6] = { (float3)( -1.0f, 0.0f, 0.0f ), (float3)( 0.0f, -1.0f, 0.0f ), 
+	(float3)( 0.0f, 0.0f, -1.0f ), (float3)( 1.0f, 0.0f, 0.0f ), (float3)( 0.0f, 1.0f, 0.0f ), (float3)( 0.0f, 0.0f, 1.0f ) };
 
 
 typedef struct __attribute__((packed)) _Camera {
@@ -101,13 +114,13 @@ __inline float3 normal( const float3 pos, const float size ) {
 
 __inline int get_face_idx( const float3 pos, const float size ) {
 	int face_idx = 0;
-	float dist = fabs(pos.x);
+	float dist = pos.x;
 
-	if ( pos.y < dist ) dist = fabs(pos.y), face_idx = 1;
-	if ( pos.z < dist ) dist = fabs(pos.z), face_idx = 2;
-	if ( (size - pos.x) < dist ) dist = fabs(size - pos.x), face_idx = 3;
-	if ( (size - pos.y) < dist ) dist = fabs(size - pos.y), face_idx = 4;
-	if ( (size - pos.z) < dist ) dist = fabs(size - pos.z), face_idx = 5;
+	if ( pos.y < dist ) dist = pos.y, face_idx = 1;
+	if ( pos.z < dist ) dist = pos.z, face_idx = 2;
+	if ( (size - pos.x) < dist ) dist = (size - pos.x), face_idx = 3;
+	if ( (size - pos.y) < dist ) dist = (size - pos.y), face_idx = 4;
+	if ( (size - pos.z) < dist ) dist = (size - pos.z), face_idx = 5;
 
 	return face_idx;
 }
@@ -127,11 +140,11 @@ VoxelFetchResult get_voxel( const int3* ccPos, __constant Voxel* voxelBuffer, __
 	return (VoxelFetchResult){voxelBuffer[offset + ((vPos->x - (CHUNK_LENGTH * cPos->x)) >> r) + (((vPos->y - (CHUNK_LENGTH * cPos->y)) >> r) << lvl) + (((vPos->z - (CHUNK_LENGTH * cPos->z)) >> r) << (2 * lvl))], 1};
 }
 
-void extend_ray( IntersectResult* intersectResult, const bool allowMissingChunk, const int3* ccPos, const float* tTotal, Ray ray, __constant uint* mapBuffer, __constant byte* voxelBuffer ) {
+void extend_ray( IntersectResult* intersectResult, const int3* ccPos, const float* tTotal, Ray ray, __constant uint* mapBuffer, __constant byte* voxelBuffer ) {
 	float t = 0.0f;
 	int lvl = 0;
 	int steps = 0;
-	while ( steps++ < 256 ) { //distance based cutoff, may not work TODOTODOTODOTODO
+	while ( steps++ < 128 ) { //distance based cutoff, may not work TODOTODOTODOTODO
 		float size = (float)(CHUNK_LENGTH >> lvl);
 		
 		int3 vPos = (int3)((int)floor(ray.pos.x), (int)floor(ray.pos.y), (int)floor(ray.pos.z)); //voxel pos in voxelBuffer coordinates
@@ -144,8 +157,8 @@ void extend_ray( IntersectResult* intersectResult, const bool allowMissingChunk,
 
 		VoxelFetchResult fetchResult = get_voxel( ccPos, (__constant Voxel*)voxelBuffer, mapBuffer, &cPos, &vPos, lvl );
 
-		if ( !fetchResult.success && !allowMissingChunk ) {
-			intersectResult->hit = HIT_RESULT_MISS; //TODO maybe pointing up??????
+		if ( !fetchResult.success ) {
+			intersectResult->hit = get_face_idx( rPos, size ) == 1 ? HIT_RESULT_SKYBOX : HIT_RESULT_MISS; //TODO maybe pointing up??????
 			intersectResult->t = t;
 			return;
 		}
@@ -169,7 +182,7 @@ void extend_ray( IntersectResult* intersectResult, const bool allowMissingChunk,
 		ray.pos += dt * ray.dir;
 		t += dt;
 
-		if ( ray.pos.y > 512.0f ) { //TODO make height limit
+		if ( ray.pos.y > 1024.0f ) { //TODO make height limit
 			intersectResult->hit = HIT_RESULT_SKYBOX;
 			intersectResult->t = t;
 			return;
@@ -182,6 +195,86 @@ void extend_ray( IntersectResult* intersectResult, const bool allowMissingChunk,
 		lvl = ( lvl > 0 && ( d.x > 0 || d.y > 0 || d.z > 0 ) ) ? lvl - 1 : lvl;
 	}
 
-	intersectResult->hit = dot(ray.dir, (float3)(0.0f, 1.0f, 0.0f)) > 0.0f ? HIT_RESULT_SKYBOX : HIT_RESULT_MISS;
+	intersectResult->hit = HIT_RESULT_MISS;
 	intersectResult->t = t;
+}
+
+
+float3 trace_path( const int pixel_idx, const Ray* camray, __constant uint* mapBuffer, __constant byte* voxelBuffer, const uint rng ) {
+	Ray ray = *camray;
+
+	float3 color = (float3)(0.0f);
+	float3 mask = (float3)(1.0f);
+	IntersectResult intersect;
+	float t_total = 0.0f;
+
+	int3 ccPos = (int3)((int)floor(ray.pos.x / CHUNK_LENGTH_F), (int)floor(ray.pos.y / CHUNK_LENGTH_F), (int)floor(ray.pos.z / CHUNK_LENGTH_F));
+
+	for ( int i = 0; i < 2; ++i ) { //bounce once
+		extend_ray( &intersect, &ccPos, &t_total, ray, mapBuffer, voxelBuffer );
+
+		if ( intersect.hit == HIT_RESULT_MISS ) {
+			return color;
+		}
+		
+		if ( intersect.hit == HIT_RESULT_SKYBOX ) {
+			return color + mask * (float3)(1.0f); //TODO change skybox color
+		}
+
+		//otherwise intersect.hit == intersect
+
+		ray.pos += ray.dir * intersect.t + 0.005f * normals[intersect.face_id];
+		t_total += intersect.t;
+
+		switch(intersect.face_id) {
+			case 0: ray.dir = -new_dir_x( rng ); break;
+			case 1: ray.dir = -new_dir_y( rng ); break;
+			case 2: ray.dir = -new_dir_z( rng ); break;
+			case 3: ray.dir = new_dir_x( rng ); break;
+			case 4: ray.dir = new_dir_y( rng ); break;
+			case 5: ray.dir = new_dir_z( rng ); break;
+		}
+
+		ray.dirInv = 1.0f / ray.dir;
+		
+		int r = ( ( intersect.voxel.color >> 5 ) & 7 );
+		int g = ( ( intersect.voxel.color >> 2 ) & 7 );
+		int b = ( ( intersect.voxel.color >> 0 ) & 3 );
+		int l = ( ( intersect.voxel.allum & 1 ) == 1 ) ? ( intersect.voxel.allum >> 1 ) : 0;
+		
+		color += mask * ( ((float) l * 0.0078740157f ) * (float3)((float)r, (float)g, (float)b * 2.33333333f) * 0.1428571429f );
+		mask *= (float3)((float)r, (float)g, (float)b * 2.33333333f) * 0.1428571429f;
+	}
+
+	return color;
+}
+
+__kernel void render( __read_write image2d_t pixelBuffer, __constant float* camBuffer, __constant uint* mapBuffer, __constant byte* voxelBuffer, __global uint* rngBuffer ) {
+	const int pixel_idx = get_global_id(0);
+	const int px = pixel_idx % 1920;
+	const int py = pixel_idx / 1920;
+
+	Camera cam;
+	cam.pos = (float3)(camBuffer[0], camBuffer[1], camBuffer[2]);
+	cam.dir = (float3)(camBuffer[3], camBuffer[4], camBuffer[5]);
+	
+	const float3 up = (float3)(0.0f, 1.0f, 0.0f);
+	const float3 camSpaceX = normalize(cross(up, cam.dir));
+	const float3 camSpaceY = (1080.0f / 1920.0f) * cross( cam.dir, camSpaceX );
+	
+	Ray camRay;
+	float3 color = (float3)(0.0f);
+	for( int i = 0; i < 1; ++i ) {
+		const uint rand = next( rngBuffer, pixel_idx );
+		const float dpx = ( ( ( rand >> 0 ) & 65535 ) * 0.0000152588f ) - 0.5f;
+		const float dpy = ( ( ( rand >> 16 ) & 65535 ) * 0.0000152588f ) - 0.5f;
+
+		camRay.pos = cam.pos;
+		camRay.dir = ( (py + dpy) / 1080.0f - 0.5f ) * camSpaceY + ( (px + dpx) / 1920.0f - 0.5f ) * camSpaceX + 0.62f * cam.dir;
+		camRay.dirInv = 1.0f / camRay.dir;
+
+		color += trace_path( pixel_idx, &camRay, mapBuffer, voxelBuffer, rand );
+	}
+
+	write_imagef(pixelBuffer, (int2)(px, py), (float4)(color, 1.0f));
 }

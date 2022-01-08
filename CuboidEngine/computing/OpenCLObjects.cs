@@ -104,10 +104,12 @@ namespace CuboidEngine {
 			builder.AppendLine( "};" );
 
 			for ( int i = 0; i < files.Length; ++i )
-				builder.AppendLine( File.ReadAllText( files[i] ) );
+				builder.Append( File.ReadAllText( files[i] ) );
 
 			string str = builder.ToString();
 			Console.WriteLine( str );
+
+			//File.WriteAllText( "../../../../CuboidEngine/assets/kernels/debug.cl", str );
 
 			return str;
 		}

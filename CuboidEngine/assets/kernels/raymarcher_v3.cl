@@ -1,5 +1,4 @@
 ﻿
-
 float3 trace_path( const int pixel_idx, const Ray* camray, __constant uint* mapBuffer, __constant byte* voxelBuffer, const uint rng ) {
 	Ray ray = *camray;
 
@@ -11,7 +10,7 @@ float3 trace_path( const int pixel_idx, const Ray* camray, __constant uint* mapB
 	int3 ccPos = (int3)((int)floor(ray.pos.x / CHUNK_LENGTH_F), (int)floor(ray.pos.y / CHUNK_LENGTH_F), (int)floor(ray.pos.z / CHUNK_LENGTH_F));
 
 	for ( int i = 0; i < 2; ++i ) { //bounce once
-		extend_ray( &intersect, &ccPos, &t_total, ray, mapBuffer, voxelBuffer );
+		extend_ray( &intersect, true, &ccPos, &t_total, ray, mapBuffer, voxelBuffer );
 
 		if ( intersect.hit == HIT_RESULT_MISS ) {
 			return color;
@@ -23,8 +22,12 @@ float3 trace_path( const int pixel_idx, const Ray* camray, __constant uint* mapB
 
 		//otherwise intersect.hit == intersect
 
-		ray.pos += ray.dir * intersect.t + 0.005f * normals[intersect.face_id];
+		//return intersect.face_id == 2 ? (float3)(1.0f, 0.0f, 0.0f) : (float3)(0.0f, 0.0f, 1.0f);
+
+		ray.pos += ray.dir * intersect.t + 0.05f * normals[intersect.face_id].xyz;
 		t_total += intersect.t;
+
+		//printf("%f %f %f \n", normals[intersect.face_id].x, normals[intersect.face_id].y, normals[intersect.face_id].z);
 
 		switch(intersect.face_id) {
 			case 0: ray.dir = -new_dir_x( rng ); break;
@@ -34,6 +37,8 @@ float3 trace_path( const int pixel_idx, const Ray* camray, __constant uint* mapB
 			case 4: ray.dir = new_dir_y( rng ); break;
 			case 5: ray.dir = new_dir_z( rng ); break;
 		}
+
+		//return dot(ray.dir, normal_y) >= 0.0f ? (float3)(1.0f, 0.0f, 0.0f) : (float3)(0.0f, 0.0f, 1.0f);
 
 		ray.dirInv = 1.0f / ray.dir;
 		
@@ -48,7 +53,6 @@ float3 trace_path( const int pixel_idx, const Ray* camray, __constant uint* mapB
 
 	return color;
 }
-
 
 __kernel void render( __read_write image2d_t pixelBuffer, __constant float* camBuffer, __constant uint* mapBuffer, __constant byte* voxelBuffer, __global uint* rngBuffer ) {
 	const int pixel_idx = get_global_id(0);
@@ -74,7 +78,7 @@ __kernel void render( __read_write image2d_t pixelBuffer, __constant float* camB
 		camRay.dir = ( (py + dpy) / 1080.0f - 0.5f ) * camSpaceY + ( (px + dpx) / 1920.0f - 0.5f ) * camSpaceX + 0.62f * cam.dir;
 		camRay.dirInv = 1.0f / camRay.dir;
 
-		color += 1.0f * trace_path( pixel_idx, &camRay, mapBuffer, voxelBuffer, rand );
+		color += trace_path( pixel_idx, &camRay, mapBuffer, voxelBuffer, rand );
 	}
 
 	write_imagef(pixelBuffer, (int2)(px, py), (float4)(color, 1.0f));

@@ -131,7 +131,7 @@ void extend_ray( IntersectResult* intersectResult, const bool allowMissingChunk,
 	float t = 0.0f;
 	int lvl = 0;
 	int steps = 0;
-	while ( steps++ < 256 ) { //distance based cutoff, may not work TODOTODOTODOTODO
+	while ( steps++ < 256 && t < 4096.0f ) { //distance based cutoff, may not work TODOTODOTODOTODO
 		float size = (float)(CHUNK_LENGTH >> lvl);
 		
 		int3 vPos = (int3)((int)floor(ray.pos.x), (int)floor(ray.pos.y), (int)floor(ray.pos.z)); //voxel pos in voxelBuffer coordinates

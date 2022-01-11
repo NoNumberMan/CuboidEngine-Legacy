@@ -9,13 +9,10 @@ using OpenTK.Compute.OpenCL;
 
 namespace CuboidEngine {
 	public static class OpenCLObjects {
-		public const int MapSizeMultiplier        = 4;
 		public const int RequestChunkBufferLength = 256;
 
 		public static long ChunkNumber;
-		public static long TotalMapChunkNumber;
 		public static long ChunkSize;
-		public static long Lod1ChunkSize;
 
 		public static ID RayMarcherKernel   { get; private set; } = new ID( -1 );
 		public static ID RequestChunkKernel { get; private set; } = new ID( -1 );
@@ -30,9 +27,8 @@ namespace CuboidEngine {
 
 		public static void LoadOpenCLObjects() {
 			long voxelBufferMaxSpace = ComputingManager.MemorySizeValue / 2;
-			ChunkNumber         = voxelBufferMaxSpace / ( Chunk.VoxelCount * Voxel.ByteSize );
-			ChunkSize           = ChunkNumber * Chunk.VoxelCount * Voxel.ByteSize;
-			TotalMapChunkNumber = ChunkNumber * MapSizeMultiplier;
+			ChunkNumber = voxelBufferMaxSpace / ( Chunk.VoxelCount * Voxel.ByteSize );
+			ChunkSize   = ChunkNumber * Chunk.VoxelCount * Voxel.ByteSize;
 
 			RayMarcherKernel   = CEngine.CLLoadKernelFromSources( "render", new[] {LoadKernel( "../../../../CuboidEngine/assets/kernels/raybase_v1.cl", "../../../../CuboidEngine/assets/kernels/raymarcher_v3.cl" )} );
 			RequestChunkKernel = CEngine.CLLoadKernelFromSources( "request_chunks", new[] {LoadKernel( "../../../../CuboidEngine/assets/kernels/raybase_v1.cl", "../../../../CuboidEngine/assets/kernels/request_v1.cl" )} );
@@ -86,7 +82,7 @@ namespace CuboidEngine {
 			builder.AppendLine( $"#define CHUNK_LENGTH_BITS {Chunk.ChunkLengthBits}" );
 			builder.AppendLine( $"#define CHUNK_VOXEL_COUNT {Chunk.VoxelCount}" );
 			builder.AppendLine( $"#define CHUNK_NUMBER {ChunkNumber}" );
-			builder.AppendLine( $"#define TOTAL_MAP_CHUNK_NUMBER {TotalMapChunkNumber}" );
+			//builder.AppendLine( $"#define TOTAL_MAP_CHUNK_NUMBER {TotalMapChunkNumber}" );
 			builder.AppendLine( $"#define VOXEL_SIZE {Voxel.ByteSize}" );
 			builder.AppendLine( $"#define REQUEST_CHUNK_BUFFER_LENGTH {RequestChunkBufferLength}" );
 			builder.AppendLine( $"#define WORLD_SIZE {World.WorldSize}ul" );
@@ -104,14 +100,9 @@ namespace CuboidEngine {
 			builder.AppendLine( "};" );
 
 			for ( int i = 0; i < files.Length; ++i )
-				builder.Append( File.ReadAllText( files[i] ) );
+				builder.AppendLine( File.ReadAllText( files[i] ) );
 
-			string str = builder.ToString();
-			Console.WriteLine( str );
-
-			//File.WriteAllText( "../../../../CuboidEngine/assets/kernels/debug.cl", str );
-
-			return str;
+			return builder.ToString();
 		}
 	}
 }

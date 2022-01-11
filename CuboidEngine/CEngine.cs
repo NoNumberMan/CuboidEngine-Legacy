@@ -36,8 +36,6 @@ namespace CuboidEngine {
 			nws.Title      = game.GetTitle();
 
 			_window = new GameWindow( gws, nws );
-			string vendor = GL.GetString( StringName.Vendor );
-			Console.WriteLine( vendor );
 
 			_window.VSync       =  VSyncMode.Off;
 			_window.Load        += OnWindowLoad;
@@ -214,10 +212,12 @@ namespace CuboidEngine {
 		//internal static ID CreateRenderObject( Chunk chunk, Chunk? chunkNorth, Chunk? chunkSouth, Chunk? chunkEast, Chunk? chunkWest, Chunk? chunkTop, Chunk? chunkBottom, int xOffset, int yOffset, int zOffset ) =>
 		//	RenderManager.CreateRenderObject( chunk, chunkNorth, chunkSouth, chunkEast, chunkWest, chunkTop, chunkBottom, xOffset, yOffset, zOffset );
 
+		[Obsolete]
 		internal static void DeleteRenderObject( ID id ) {
 			RenderManager.DeleteRenderObject( id );
 		}
 
+		[Obsolete]
 		internal static void RenderRenderObject( ID id ) {
 			RenderManager.RenderRenderObject( id, Shaders.DefaultShaderId );
 		}
@@ -257,6 +257,7 @@ namespace CuboidEngine {
 		private static readonly Timer _timer = new Timer();
 
 		private static void OnWindowRenderTick( FrameEventArgs args ) {
+#if DEBUG
 			if ( _timer.Count > 1 ) {
 				Console.WriteLine( $"Elapsed Time = {_timer.MeanTime}ms" );
 				_timer.Restart();
@@ -264,6 +265,7 @@ namespace CuboidEngine {
 			else {
 				_timer.AddSample( args.Time * 1000.0 );
 			}
+#endif
 
 			GL.Clear( ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit );
 

@@ -7,39 +7,19 @@ void trace_path( const int index, const Ray* camray, __constant uint* mapBuffer,
 	IntersectResult intersect;
 	float t_total = 0.0f;
 
-	for ( int i = 0; i < 1; ++i ) { //bounce once
-		extend_ray( &intersect, false, &ccPos, &t_total, ray, mapBuffer, voxelBuffer );
+	extend_ray( &intersect, false, &ccPos, &t_total, ray, mapBuffer, voxelBuffer );
 
-		if ( intersect.hit == HIT_RESULT_MISS ) {
-			ray.pos += ray.dir * intersect.t;
-			int3 cPos = (int3)((int)floor(ray.pos.x / CHUNK_LENGTH_F), (int)floor(ray.pos.y / CHUNK_LENGTH_F), (int)floor(ray.pos.z / CHUNK_LENGTH_F));
+	if ( intersect.hit == HIT_RESULT_MISS ) {
+		ray.pos += ray.dir * intersect.t;
+		int3 cPos = (int3)((int)floor(ray.pos.x / CHUNK_LENGTH_F), (int)floor(ray.pos.y / CHUNK_LENGTH_F), (int)floor(ray.pos.z / CHUNK_LENGTH_F));
 			
-			if ( abs(cPos.x - ccPos.x) >= WORLD_OFFSET-1 || abs(cPos.y - ccPos.y) >= WORLD_OFFSET-1 || abs(cPos.z - ccPos.z) >= WORLD_OFFSET-1) {
-				return;
-			}
-
-			//printf( "%i \n", (cPos.z - ccPos.z) );
-			
-			uint chunkIndex = (uint)((cPos.x - ccPos.x) + WORLD_OFFSET) + WORLD_SIZE * (uint)((cPos.y - ccPos.y) + WORLD_OFFSET) + WORLD_SIZE * WORLD_SIZE * (uint)((cPos.z - ccPos.z) + WORLD_OFFSET);
-			requestBuffer[index] = ( chunkIndex | 0xff000000 );
+		if ( abs(cPos.x - ccPos.x) >= WORLD_OFFSET-1 || abs(cPos.y - ccPos.y) >= WORLD_OFFSET-1 || abs(cPos.z - ccPos.z) >= WORLD_OFFSET-1) {
 			return;
 		}
-		
-		if ( intersect.hit == HIT_RESULT_SKYBOX ) return;
 
-		ray.pos += ray.dir * intersect.t + 0.005f * normals[intersect.face_id].xyz;
-		t_total += intersect.t;
-
-		switch(intersect.face_id) {
-			case 0: ray.dir = -new_dir_x( rng ); break;
-			case 1: ray.dir = -new_dir_y( rng ); break;
-			case 2: ray.dir = -new_dir_z( rng ); break;
-			case 3: ray.dir = new_dir_x( rng ); break;
-			case 4: ray.dir = new_dir_y( rng ); break;
-			case 5: ray.dir = new_dir_z( rng ); break;
-		}
-
-		ray.dirInv = 1.0f / ray.dir;
+		uint chunkIndex = (uint)((cPos.x - ccPos.x) + WORLD_OFFSET) + WORLD_SIZE * (uint)((cPos.y - ccPos.y) + WORLD_OFFSET) + WORLD_SIZE * WORLD_SIZE * (uint)((cPos.z - ccPos.z) + WORLD_OFFSET);
+		requestBuffer[index] = ( chunkIndex | 0xff000000 );
+		return;
 	}
 }
 

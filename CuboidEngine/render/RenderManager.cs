@@ -47,7 +47,7 @@ namespace CuboidEngine {
 			CEngine.CLWaitForFinish();
 		}
 
-		public static void RenderRayMarcherResult() {
+		private static void RenderRayMarcherResult() {
 			int vao       = GL.GenVertexArray();
 			int vertices  = GL.GenBuffer();
 			int texcoords = GL.GenBuffer();
@@ -89,12 +89,18 @@ namespace CuboidEngine {
 			GL.DeleteVertexArray( vao );
 		}
 
+
+		//DEPRECATED============================================================
+
+
+		[Obsolete]
 		public static void DeleteRenderObject( ID id ) {
 			RenderObject ro = _renderObjects[id];
 			GL.DeleteVertexArray( ro.vao );
 			_renderObjects.RemoveAsset( id );
 		}
 
+		[Obsolete]
 		public static void RenderRenderObject( ID id, ID shaderId ) {
 			RenderObject ro              = _renderObjects[id];
 			Matrix4      transformMatrix = Matrix4.CreateTranslation( ro.offset );
@@ -106,10 +112,6 @@ namespace CuboidEngine {
 			GL.DrawArrays( PrimitiveType.Points, 0, ro.size );
 			GL.BindVertexArray( 0 );
 		}
-
-
-		//DEPRECATED============================================================
-
 
 		[Obsolete]
 		[MethodImpl( MethodImplOptions.AggressiveInlining )]

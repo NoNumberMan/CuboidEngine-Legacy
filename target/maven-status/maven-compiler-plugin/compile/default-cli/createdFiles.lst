@@ -1,0 +1,5 @@
+com\nonumberstudios\cuboid\input\Keys.class
+com\nonumberstudios\cuboid\CuboidEngine.class
+com\nonumberstudios\cuboid\input\KeyStates.class
+com\nonumberstudios\cuboid\IGame.class
+com\nonumberstudios\TestGame.class

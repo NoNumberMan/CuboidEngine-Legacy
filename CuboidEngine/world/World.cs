@@ -10,7 +10,7 @@ using OpenTK.Mathematics;
 
 namespace CuboidEngine {
 	internal sealed class World {
-		public const int WorldSize         = 16;
+		public const int WorldSize         = 32;
 		public const int WorldCenterOffset = ( int ) WorldSize >> 1;
 
 		private          int     _currentChunkNumber = 0;

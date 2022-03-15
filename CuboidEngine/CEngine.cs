@@ -10,6 +10,40 @@ namespace CuboidEngine {
 		private static GameWindow? _window;
 		private static IGame?      _game;
 
+		//TODO for v1.1
+		//1. imgui for debugging and ingame ui
+		//2. logging
+		//3. better debugging control
+		//4. port opencl code to glsl
+		
+		//TODO for v1.2
+		//1. add bvh rendering
+		//2. add boundary volume voxel spaces
+		//3. dynamic placing of boundaries in world
+		
+		//TODO for v1.3
+		//1. add editor
+		//2. add mesh interpolation/conversion
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 		public static bool IsInitialized => _window != null;
 
 

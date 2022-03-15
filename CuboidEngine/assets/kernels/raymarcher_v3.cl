@@ -61,7 +61,7 @@ __kernel void render( __read_write image2d_t pixelBuffer, __constant float* camB
 	
 	Ray camRay;
 	float3 color = (float3)(0.0f);
-	for( int i = 0; i < 1; ++i ) {
+	for( int i = 0; i < 10; ++i ) {
 		const uint rand = next( rngBuffer, pixel_idx );
 		const float dpx = ( ( ( rand >> 0 ) & 65535 ) * 0.0000152588f ) - 0.5f;
 		const float dpy = ( ( ( rand >> 16 ) & 65535 ) * 0.0000152588f ) - 0.5f;
@@ -70,7 +70,7 @@ __kernel void render( __read_write image2d_t pixelBuffer, __constant float* camB
 		camRay.dir = ( (py + dpy) / 1080.0f - 0.5f ) * camSpaceY + ( (px + dpx) / 1920.0f - 0.5f ) * camSpaceX + 0.62f * cam.dir;
 		camRay.dirInv = 1.0f / camRay.dir;
 
-		color += 1.0f * trace_path( pixel_idx, &camRay, mapBuffer, voxelBuffer, rand );
+		color += 0.1f * trace_path( pixel_idx, &camRay, mapBuffer, voxelBuffer, rand );
 	}
 
 	write_imagef(pixelBuffer, (int2)(px, py), (float4)(color, 1.0f));
